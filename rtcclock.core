@@ -1,0 +1,13 @@
+CAPI=1
+[main]
+description = A Real Time Clock Core
+
+[fileset rtl]
+files =
+  rtl/rtcclock.v
+  rtl/rtclight.v
+  rtl/rtcgps.v
+  rtl/rtcdate.v
+  rtl/hexmap.v
+file_type = verilogSource
+
