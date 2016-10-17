@@ -40,16 +40,17 @@ all: rtcdate_tb
 
 VSRCD:= ../../rtl
 OBJDR:= $(VSRCD)/obj_dir
-VINC := -I/usr/share/verilator/include -I$(OBJDR)/
+VERILATOR_ROOT ?= $(shell bash -c 'verilator -V|grep VERILATOR_ROOT | head -1 | sed -e " s/^.*=\s*//"')
+VROOT   := $(VERILATOR_ROOT)
+VINC := -I$(VROOT)/include -I$(OBJDR)/
 CLKLB:= $(OBJDR)/Vrtcclock__ALL.a
 DATLB:= $(OBJDR)/Vrtcdate__ALL.a
-VERILATOR_ROOT := /usr/share/verilator
 
 rtcclock_tb: rtcclock_tb.cpp twoc.h $(CLKLB)
-	g++ -g $(VINC) $< twoc.cpp $(CLKLB) $(VERILATOR_ROOT)/include/verilated.cpp -o $@
+	g++ -g $(VINC) $< twoc.cpp $(CLKLB) $(VROOT)/include/verilated.cpp -o $@
 
 rtcdate_tb: rtcdate_tb.cpp twoc.h $(DATLB)
-	g++ -g $(VINC) $< twoc.cpp $(DATLB) $(VERILATOR_ROOT)/include/verilated.cpp -o $@
+	g++ -g $(VINC) $< twoc.cpp $(DATLB) $(VROOT)/include/verilated.cpp -o $@
 
 .PHONY: test
 test: rtcclock_tb rtcdate_tb
@@ -60,4 +61,4 @@ test: rtcclock_tb rtcdate_tb
 clean:
 	rm -f rtcclock_tb rtcdate_tb
 
-include $(VERILATOR_ROOT)/include/verilated.mk
+include $(VROOT)/include/verilated.mk
