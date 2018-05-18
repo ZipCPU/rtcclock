@@ -1,7 +1,7 @@
 ///////////////////////////////////////////////////////////////////////////
 //
 // Filename: 	hexmap.v
-//		
+//
 // Project:	A Real--time Clock Core
 //
 // Purpose:	Converts a 4'bit hexadecimal value to the seven bits needed

@@ -63,25 +63,23 @@ public:
 	BUSV	read(void) {
 		BUSV	result;
 
-		m_core->i_wb_cyc = 1;
-		m_core->i_wb_stb = 1;
-		m_core->i_wb_we  = 0;
-		m_core->i_ppd    = 0;
+		m_core->i_wb_cyc_stb = 1;
+		m_core->i_wb_we      = 0;
+		m_core->i_ppd        = 0;
 		tick();
 
-		m_core->i_wb_cyc = 1;
-		m_core->i_wb_stb = 0;
-		m_core->i_wb_we  = 0;
-		m_core->i_ppd    = 0;
+		m_core->i_wb_cyc_stb = 0;
+		m_core->i_wb_we      = 0;
+		m_core->i_ppd        = 0;
 		result = m_core->o_wb_data;
+// printf("WB-READ = %08x\n", m_core->o_wb_data);
 
 		assert(m_core->o_wb_stall == 0);
 		assert(m_core->o_wb_ack   == 1);
 
-		m_core->i_wb_cyc = 0;
-		m_core->i_wb_stb = 0;
-		m_core->i_wb_we  = 0;
-		m_core->i_ppd    = 0;
+		m_core->i_wb_cyc_stb = 0;
+		m_core->i_wb_we      = 0;
+		m_core->i_ppd        = 0;
 		tick();
 
 		assert(m_core->o_wb_stall == 0);
@@ -91,30 +89,35 @@ public:
 	}
 
 	void	write(BUSV val) {
-		m_core->i_wb_cyc = 1;
-		m_core->i_wb_stb = 1;
+// printf("WB-WRITE(%08x)\n", val);
+		m_core->i_wb_cyc_stb = 1;
 		m_core->i_wb_we  = 1;
 		m_core->i_wb_data = val;
+		m_core->i_wb_sel  = 15;
 		m_core->i_ppd    = 0;
 		tick();
 
-		m_core->i_wb_cyc = 1;
-		m_core->i_wb_stb = 0;
+		m_core->i_wb_cyc_stb = 1;
 		m_core->i_wb_we  = 0;
 		m_core->i_ppd    = 0;
 
 		assert(m_core->o_wb_stall == 0);
 		assert(m_core->o_wb_ack   == 1);
+// printf("%08x =? %08x\n", m_core->o_wb_data, val);
 
-		m_core->i_wb_cyc = 0;
-		m_core->i_wb_stb = 0;
+		m_core->i_wb_cyc_stb = 0;
 		m_core->i_wb_we  = 0;
 		m_core->i_ppd    = 0;
 		tick();
 
-		assert(m_core->o_wb_stall == 0);
-		assert(m_core->o_wb_ack   == 0);
-		assert(m_core->o_wb_data  == val);
+		// Let the write propagate through before we inspect it
+		for(int i=0; i<12; i++) {
+			tick();
+
+// printf("%08x =? %08x\n", m_core->o_wb_data, val);
+			assert(m_core->o_wb_stall == 0);
+			assert(m_core->o_wb_ack   == 0);
+		}
 	}
 
 
@@ -140,7 +143,7 @@ public:
 		return bv;
 	}
 
-	BUSV	set(time_t when) {
+	void	set(time_t when) {
 		write(encode(when));
 	}
 
@@ -156,15 +159,15 @@ public:
 
 	void	next(void) {
 		m_core->i_ppd    = 1;
-		m_core->i_wb_cyc = 0;
-		m_core->i_wb_stb = 0;
+		m_core->i_wb_cyc_stb = 0;
 
 		tick();
 
 		m_core->i_ppd    = 0;
-		m_core->i_wb_cyc = 0;
-		m_core->i_wb_stb = 0;
+		m_core->i_wb_cyc_stb = 0;
 
+		for(int k=0; k<10; k++)
+			tick();
 	}
 };
 
@@ -173,6 +176,7 @@ int main(int argc, char **argv) {
 	RTCDATE_TB *tb = new RTCDATE_TB;
 	time_t	start, when, stop;
 
+	tb->opentrace("rtcdate.vcd");
 	struct	tm	tv;
 	bzero(&tv, sizeof(struct tm));
 

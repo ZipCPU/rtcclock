@@ -1,7 +1,7 @@
-///////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 //
 // Filename: 	rtclight.v
-//		
+//
 // Project:	A Wishbone Controlled Real--time Clock Core
 //
 // Purpose:	Implement a real time clock, including alarm, count--down
@@ -16,9 +16,9 @@
 // Creator:	Dan Gisselquist, Ph.D.
 //		Gisselquist Technology, LLC
 //
-///////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 //
-// Copyright (C) 2015, Gisselquist Technology, LLC
+// Copyright (C) 2015,2018, Gisselquist Technology, LLC
 //
 // This program is free software (firmware): you can redistribute it and/or
 // modify it under the terms of  the GNU General Public License as published
@@ -39,8 +39,12 @@
 //		http://www.gnu.org/licenses/gpl.html
 //
 //
-///////////////////////////////////////////////////////////////////////////
-module	rtclight(i_clk, 
+////////////////////////////////////////////////////////////////////////////////
+//
+//
+`default_nettype	none
+//
+module	rtclight(i_clk,
 		// Wishbone interface
 		i_wb_cyc, i_wb_stb, i_wb_we, i_wb_addr, i_wb_data,
 		//	o_wb_ack, o_wb_stb, o_wb_data, // no reads here
@@ -53,10 +57,10 @@ module	rtclight(i_clk,
 		// A once-per-day strobe on the last clock of the day
 		o_ppd);
 	parameter	DEFAULT_SPEED = 32'd2814750;	// 100 Mhz
-	input	i_clk;
-	input	i_wb_cyc, i_wb_stb, i_wb_we;
-	input	[2:0]	i_wb_addr;
-	input	[31:0]	i_wb_data;
+	input	wire		i_clk;
+	input	wire		i_wb_cyc, i_wb_stb, i_wb_we;
+	input	wire	[2:0]	i_wb_addr;
+	input	wire	[31:0]	i_wb_data;
 	// input		i_btn;
 	output	reg	[31:0]	o_data;
 	output	wire		o_interrupt, o_ppd;
@@ -64,13 +68,13 @@ module	rtclight(i_clk,
 	reg	[21:0]	clock;
 	reg	[31:0]	stopwatch, ckspeed;
 	reg	[25:0]	timer;
-	
+
 	wire	ck_sel, tm_sel, sw_sel, sp_sel, al_sel;
-	assign	ck_sel = ((i_wb_cyc)&&(i_wb_stb)&&(i_wb_addr[2:0]==3'b000));
-	assign	tm_sel = ((i_wb_cyc)&&(i_wb_stb)&&(i_wb_addr[2:0]==3'b001));
-	assign	sw_sel = ((i_wb_cyc)&&(i_wb_stb)&&(i_wb_addr[2:0]==3'b010));
-	assign	al_sel = ((i_wb_cyc)&&(i_wb_stb)&&(i_wb_addr[2:0]==3'b011));
-	assign	sp_sel = ((i_wb_cyc)&&(i_wb_stb)&&(i_wb_addr[2:0]==3'b100));
+	assign	ck_sel = ((i_wb_stb)&&(i_wb_addr[2:0]==3'b000));
+	assign	tm_sel = ((i_wb_stb)&&(i_wb_addr[2:0]==3'b001));
+	assign	sw_sel = ((i_wb_stb)&&(i_wb_addr[2:0]==3'b010));
+	assign	al_sel = ((i_wb_stb)&&(i_wb_addr[2:0]==3'b011));
+	assign	sp_sel = ((i_wb_stb)&&(i_wb_addr[2:0]==3'b100));
 
 	reg		ck_carry;
 	reg	[39:0]	ck_counter;
@@ -157,9 +161,9 @@ module	rtclight(i_clk,
 	reg	[21:0]		ck_last_clock;
 	always @(posedge i_clk)
 		ck_last_clock <= clock[21:0];
-		
 
-	reg	tm_pps, tm_ppm, tm_int;
+
+	reg	tm_pps, tm_int;
 	wire	tm_stopped, tm_running, tm_alarm;
 	assign	tm_stopped = ~timer[24];
 	assign	tm_running =  timer[24];
@@ -178,7 +182,7 @@ module	rtclight(i_clk,
 			tm_pps <= (tm_sub == 8'hff);
 		end else
 			tm_pps <= 1'b0;
-		
+
 		if ((~tm_alarm)&&(tm_running)&&(tm_pps))
 		begin // If we are running ...
 			timer[25] <= 1'b0;
@@ -333,7 +337,7 @@ module	rtclight(i_clk,
 	// time, the RTC code will generate a clock interrupt, and the CPU/host
 	// can come and see that the alarm tripped.
 	//
-	// 
+	//
 	reg	[21:0]		alarm_time;
 	reg			al_int,		// The alarm interrupt line
 				al_enabled,	// Whether the alarm is enabled
@@ -351,11 +355,11 @@ module	rtclight(i_clk,
 			if (i_wb_data[21:16] != 6'h3f)
 				alarm_time[21:16] <= i_wb_data[21:16];
 			// Here's the same thing for the minutes: only adjust
-			// the alarm minutes if the new bits are not all 1's. 
+			// the alarm minutes if the new bits are not all 1's.
 			if (i_wb_data[15:8] != 8'hff)
 				alarm_time[15:8] <= i_wb_data[15:8];
 			// Here's the same thing for the seconds: only adjust
-			// the alarm minutes if the new bits are not all 1's. 
+			// the alarm minutes if the new bits are not all 1's.
 			if (i_wb_data[7:0] != 8'hff)
 				alarm_time[7:0] <= i_wb_data[7:0];
 			al_enabled <= i_wb_data[24];
@@ -379,7 +383,7 @@ module	rtclight(i_clk,
 	// clock ticks you expect per second.  Adjust high for a slower
 	// clock, lower for a faster clock.  In this fashion, a single
 	// real time clock RTL file can handle tracking the clock in any
-	// device.  Further, because this is only the lower 32 bits of a 
+	// device.  Further, because this is only the lower 32 bits of a
 	// 48 bit counter per seconds, the clock jitter is kept below
 	// 1 part in 65 thousand.
 	//
@@ -409,5 +413,11 @@ module	rtclight(i_clk,
 		3'b100: o_data <= ckspeed;
 		default: o_data <= 32'h000;
 		endcase
+
+	// Make verilator hapy
+	// verilator lint_off UNUSED
+	wire	unused;
+	assign	unused = i_wb_cyc;
+	// verilator lint_on UNUSED
 
 endmodule

@@ -1,7 +1,7 @@
-///////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 //
 // Filename: 	rtcclock.v
-//		
+//
 // Project:	A Wishbone Controlled Real--time Clock Core
 //
 // Purpose:	Implement a real time clock, including alarm, count--down
@@ -11,9 +11,9 @@
 // Creator:	Dan Gisselquist, Ph.D.
 //		Gisselquist Technology, LLC
 //
-///////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 //
-// Copyright (C) 2015, Gisselquist Technology, LLC
+// Copyright (C) 2015,2017, Gisselquist Technology, LLC
 //
 // This program is free software (firmware): you can redistribute it and/or
 // modify it under the terms of  the GNU General Public License as published
@@ -34,8 +34,12 @@
 //		http://www.gnu.org/licenses/gpl.html
 //
 //
-///////////////////////////////////////////////////////////////////////////
-module	rtcclock(i_clk, 
+////////////////////////////////////////////////////////////////////////////////
+//
+//
+`default_nettype	none
+//
+module	rtcclock(i_clk,
 		// Wishbone interface
 		i_wb_cyc, i_wb_stb, i_wb_we, i_wb_addr, i_wb_data,
 		//	o_wb_ack, o_wb_stb, o_wb_data, // no reads here
@@ -50,20 +54,20 @@ module	rtcclock(i_clk,
 		// Time setting hack(s)
 		i_hack);
 	parameter	DEFAULT_SPEED = 32'd2814750; //2af31e = 2^48 / 100e6 MHz
-	input	i_clk;
-	input	i_wb_cyc, i_wb_stb, i_wb_we;
-	input	[2:0]	i_wb_addr;
-	input	[31:0]	i_wb_data;
+	input	wire	i_clk;
+	input	wire	i_wb_cyc, i_wb_stb, i_wb_we;
+	input	wire	[2:0]	i_wb_addr;
+	input	wire	[31:0]	i_wb_data;
 	// input		i_btn;
 	output	reg	[31:0]	o_data;
 	output	reg	[31:0]	o_sseg;
 	output	wire	[15:0]	o_led;
 	output	wire		o_interrupt, o_ppd;
-	input			i_hack;
+	input	wire		i_hack;
 
 	reg	[31:0]	stopwatch, ckspeed;
 	reg	[25:0]	clock, timer;
-	
+
 	wire	ck_sel, tm_sel, sw_sel, sp_sel, al_sel;
 	assign	ck_sel = ((i_wb_cyc)&&(i_wb_stb)&&(i_wb_addr[2:0]==3'b000));
 	assign	tm_sel = ((i_wb_cyc)&&(i_wb_stb)&&(i_wb_addr[2:0]==3'b001));
@@ -155,7 +159,7 @@ module	rtcclock(i_clk,
 	reg	[21:0]		ck_last_clock;
 	always @(posedge i_clk)
 		ck_last_clock <= clock[21:0];
-		
+
 
 	reg	tm_pps, tm_ppm, tm_int;
 	wire	tm_stopped, tm_running, tm_alarm;
@@ -176,7 +180,7 @@ module	rtcclock(i_clk,
 			tm_pps <= (tm_sub == 8'hff);
 		end else
 			tm_pps <= 1'b0;
-		
+
 		if ((~tm_alarm)&&(tm_running)&&(tm_pps))
 		begin // If we are running ...
 			timer[25] <= 1'b0;
@@ -331,7 +335,7 @@ module	rtcclock(i_clk,
 	// time, the RTC code will generate a clock interrupt, and the CPU/host
 	// can come and see that the alarm tripped.
 	//
-	// 
+	//
 	reg	[21:0]		alarm_time;
 	reg			al_int,		// The alarm interrupt line
 				al_enabled,	// Whether the alarm is enabled
@@ -349,11 +353,11 @@ module	rtcclock(i_clk,
 			if (i_wb_data[21:16] != 6'h3f)
 				alarm_time[21:16] <= i_wb_data[21:16];
 			// Here's the same thing for the minutes: only adjust
-			// the alarm minutes if the new bits are not all 1's. 
+			// the alarm minutes if the new bits are not all 1's.
 			if (i_wb_data[15:8] != 8'hff)
 				alarm_time[15:8] <= i_wb_data[15:8];
 			// Here's the same thing for the seconds: only adjust
-			// the alarm minutes if the new bits are not all 1's. 
+			// the alarm minutes if the new bits are not all 1's.
 			if (i_wb_data[7:0] != 8'hff)
 				alarm_time[7:0] <= i_wb_data[7:0];
 			al_enabled <= i_wb_data[24];
@@ -377,7 +381,7 @@ module	rtcclock(i_clk,
 	// clock ticks you expect per second.  Adjust high for a slower
 	// clock, lower for a faster clock.  In this fashion, a single
 	// real time clock RTL file can handle tracking the clock in any
-	// device.  Further, because this is only the lower 32 bits of a 
+	// device.  Further, because this is only the lower 32 bits of a
 	// 48 bit counter per seconds, the clock jitter is kept below
 	// 1 part in 65 thousand.
 	//
@@ -391,7 +395,7 @@ module	rtcclock(i_clk,
 		if ((sp_sel)&&(i_wb_we))
 			ckspeed <= i_wb_data;
 
-	// 
+	//
 	// If you want very fine precision control over your clock, you need
 	// to be able to transfer time from one location to another.  This
 	// is the beginning of that means: by setting a wire, i_hack, high
@@ -399,7 +403,7 @@ module	rtcclock(i_clk,
 	// time was on that input.
 	//
 	// What's missing from this high precision adjustment mechanism is a
-	// means of actually adjusting this time based upon the time 
+	// means of actually adjusting this time based upon the time
 	// difference you measure here between the hack time and some time
 	// on another clock, but we'll get there.
 	//
@@ -465,7 +469,7 @@ module	rtcclock(i_clk,
 		if ((tm_alarm || al_tripped)&&(ck_sub[7]))
 			o_sseg <= 32'h0000;
 		else
-			o_sseg <= { 
+			o_sseg <= {
 				(dmask[3])?w_sseg[31:24]:8'h00,
 				(dmask[2])?w_sseg[23:16]:8'h00,
 				(dmask[1])?w_sseg[15: 8]:8'h00,

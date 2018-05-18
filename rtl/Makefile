@@ -15,7 +15,7 @@
 ##
 ##########################################################################/
 ##
-## Copyright (C) 2015, Gisselquist Technology, LLC
+## Copyright (C) 2015,2018, Gisselquist Technology, LLC
 ##
 ## This program is free software (firmware): you can redistribute it and/or
 ## modify it under the terms of  the GNU General Public License as published
@@ -28,12 +28,12 @@
 ## for more details.
 ##
 ## You should have received a copy of the GNU General Public License along
-## with this program.  (It's in the $(ROOT)/doc directory, run make with no
+## with this program.  (It's in the $(ROOT)/doc directory.  Run make with no
 ## target there if the PDF file isn't present.)  If not, see
-## <http:##www.gnu.org/licenses/> for a copy.
+## <http://www.gnu.org/licenses/> for a copy.
 ##
 ## License:	GPL, v3, as defined and found on www.gnu.org,
-##		http:##www.gnu.org/licenses/gpl.html
+##		http://www.gnu.org/licenses/gpl.html
 ##
 ##
 ##########################################################################/
@@ -43,11 +43,13 @@
 all: rtcdate rtcclock rtclight rtcgps
 OBJDR := ./obj_dir
 BENCHD := ../bench/cpp
+VERILATOR := verilator
+VFLAGS := -Wall -trace -cc
 
 .PHONY: rtcclock
 rtcclock: $(OBJDR)/Vrtcclock__ALL.a
 $(OBJDR)/Vrtcclock.cpp $(OBJDR)/Vrtcclock.h: rtcclock.v
-	verilator -cc rtcclock.v
+	$(VERILATOR) $(VFLAGS) rtcclock.v
 $(OBJDR)/Vrtcclock__ALL.a: $(OBJDR)/Vrtcclock.h
 $(OBJDR)/Vrtcclock__ALL.a: $(OBJDR)/Vrtcclock.cpp
 	cd $(OBJDR)/; make -f Vrtcclock.mk
@@ -55,7 +57,7 @@ $(OBJDR)/Vrtcclock__ALL.a: $(OBJDR)/Vrtcclock.cpp
 .PHONY: rtcdate
 rtcdate: $(OBJDR)/Vrtcdate__ALL.a
 $(OBJDR)/Vrtcdate.cpp $(OBJDR)/Vrtcdate.h: rtcdate.v
-	verilator -cc rtcdate.v
+	$(VERILATOR) $(VFLAGS) rtcdate.v
 $(OBJDR)/Vrtcdate__ALL.a: $(OBJDR)/Vrtcdate.h
 $(OBJDR)/Vrtcdate__ALL.a: $(OBJDR)/Vrtcdate.cpp
 	cd $(OBJDR)/; make -f Vrtcdate.mk
@@ -63,7 +65,7 @@ $(OBJDR)/Vrtcdate__ALL.a: $(OBJDR)/Vrtcdate.cpp
 .PHONY: rtclight
 rtclight: $(OBJDR)/Vrtclight__ALL.a
 $(OBJDR)/Vrtclight.cpp $(OBJDR)/Vrtclight.h: rtclight.v
-	verilator -cc rtclight.v
+	$(VERILATOR) $(VFLAGS) rtclight.v
 $(OBJDR)/Vrtclight__ALL.a: $(OBJDR)/Vrtclight.h
 $(OBJDR)/Vrtclight__ALL.a: $(OBJDR)/Vrtclight.cpp
 	cd $(OBJDR)/; make -f Vrtclight.mk
@@ -71,7 +73,7 @@ $(OBJDR)/Vrtclight__ALL.a: $(OBJDR)/Vrtclight.cpp
 .PHONY: rtcgps
 rtcgps: $(OBJDR)/Vrtcgps__ALL.a
 $(OBJDR)/Vrtcgps.cpp $(OBJDR)/Vrtcgps.h: rtcgps.v
-	verilator -cc rtcgps.v
+	$(VERILATOR) $(VFLAGS) rtcgps.v
 $(OBJDR)/Vrtcgps__ALL.a: $(OBJDR)/Vrtcgps.h
 $(OBJDR)/Vrtcgps__ALL.a: $(OBJDR)/Vrtcgps.cpp
 	cd $(OBJDR)/; make -f Vrtcgps.mk
