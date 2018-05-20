@@ -28,7 +28,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 //
-// Copyright (C) 2015-2017, Gisselquist Technology, LLC
+// Copyright (C) 2015-2018, Gisselquist Technology, LLC
 //
 // This program is free software (firmware): you can redistribute it and/or
 // modify it under the terms of  the GNU General Public License as published
@@ -56,6 +56,7 @@
 //
 module rtcdate(i_clk, i_ppd, i_wb_cyc_stb, i_wb_we, i_wb_data, i_wb_sel,
 		o_wb_ack, o_wb_stall, o_wb_data);
+	parameter [0:0]		F_OPT_CLK2FFLOGIC = 1'b0;
 	input	wire		i_clk;
 	// A one part per day signal, i.e. basically a clock enable line that
 	// controls when the beginning of the day happens.  This line should
@@ -277,22 +278,26 @@ module rtcdate(i_clk, i_ppd, i_wb_cyc_stb, i_wb_we, i_wb_data, i_wb_sel,
 	initial	assume(!i_wb_we);
 	initial	assume(!i_wb_sel);
 	initial	`ASSUME(!i_ppd);
-	always @($global_clock)
-	if (!$rose(i_clk))
-	begin
-		`ASSUME($stable(i_ppd));
-		`ASSUME($stable(i_wb_cyc_stb));
-		`ASSUME($stable(i_wb_we));
-		`ASSUME($stable(i_wb_data));
-		`ASSUME($stable(i_wb_sel));
 
-		if (f_past_valid)
+	generate if (F_OPT_CLK2FFLOGIC)
+	begin
+		always @($global_clock)
+		if (!$rose(i_clk))
 		begin
-			assert($stable(o_wb_ack));
-			assert($stable(o_wb_stall));
-			assert($stable(o_wb_data));
+			`ASSUME($stable(i_ppd));
+			`ASSUME($stable(i_wb_cyc_stb));
+			`ASSUME($stable(i_wb_we));
+			`ASSUME($stable(i_wb_data));
+			`ASSUME($stable(i_wb_sel));
+
+			if (f_past_valid)
+			begin
+				assert($stable(o_wb_ack));
+				assert($stable(o_wb_stall));
+				assert($stable(o_wb_data));
+			end
 		end
-	end
+	end endgenerate
 
 	always @(posedge i_clk)
 		if (f_past_valid)

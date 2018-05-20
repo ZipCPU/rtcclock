@@ -13,7 +13,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 //
-// Copyright (C) 2015,2017, Gisselquist Technology, LLC
+// Copyright (C) 2015,2017-2018, Gisselquist Technology, LLC
 //
 // This program is free software (firmware): you can redistribute it and/or
 // modify it under the terms of  the GNU General Public License as published
@@ -69,21 +69,23 @@ module	rtcclock(i_clk,
 	reg	[25:0]	clock, timer;
 
 	wire	ck_sel, tm_sel, sw_sel, sp_sel, al_sel;
-	assign	ck_sel = ((i_wb_cyc)&&(i_wb_stb)&&(i_wb_addr[2:0]==3'b000));
-	assign	tm_sel = ((i_wb_cyc)&&(i_wb_stb)&&(i_wb_addr[2:0]==3'b001));
-	assign	sw_sel = ((i_wb_cyc)&&(i_wb_stb)&&(i_wb_addr[2:0]==3'b010));
-	assign	al_sel = ((i_wb_cyc)&&(i_wb_stb)&&(i_wb_addr[2:0]==3'b011));
-	assign	sp_sel = ((i_wb_cyc)&&(i_wb_stb)&&(i_wb_addr[2:0]==3'b100));
+	assign	ck_sel = ((i_wb_stb)&&(i_wb_addr[2:0]==3'b000));
+	assign	tm_sel = ((i_wb_stb)&&(i_wb_addr[2:0]==3'b001));
+	assign	sw_sel = ((i_wb_stb)&&(i_wb_addr[2:0]==3'b010));
+	assign	al_sel = ((i_wb_stb)&&(i_wb_addr[2:0]==3'b011));
+	assign	sp_sel = ((i_wb_stb)&&(i_wb_addr[2:0]==3'b100));
 
-	reg	[39:0]	ck_counter;
 	reg		ck_carry;
+	reg	[39:0]	ck_counter;
+	initial		ck_carry = 1'b0;
+	initial		ck_counter = 40'h00;
 	always @(posedge i_clk)
 		{ ck_carry, ck_counter } <= ck_counter + { 8'h00, ckspeed };
 
 	wire		ck_pps;
 	reg		ck_prepps, ck_ppm, ck_pph, ck_ppd;
 	reg	[7:0]	ck_sub;
-	initial	clock = 26'h000000;
+	initial	clock = 0;
 	assign	ck_pps = (ck_carry)&&(ck_prepps);
 	always @(posedge i_clk)
 	begin
@@ -161,7 +163,7 @@ module	rtcclock(i_clk,
 		ck_last_clock <= clock[21:0];
 
 
-	reg	tm_pps, tm_ppm, tm_int;
+	reg	tm_pps, tm_int;
 	wire	tm_stopped, tm_running, tm_alarm;
 	assign	tm_stopped = ~timer[24];
 	assign	tm_running =  timer[24];
@@ -504,5 +506,11 @@ module	rtcclock(i_clk,
 		3'b110: o_data <= hack_counter[39:8];
 		3'b111: o_data <= { hack_counter[7:0], 24'h00 };
 		endcase
+
+	// Make verilator hapy
+	// verilator lint_off UNUSED
+	wire	unused;
+	assign	unused = i_wb_cyc;
+	// verilator lint_on UNUSED
 
 endmodule

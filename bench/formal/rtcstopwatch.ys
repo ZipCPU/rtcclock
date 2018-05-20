@@ -1,0 +1,3 @@
+read_verilog -D STOPWATCH -formal ../../rtl/rtcstopwatch.v
+prep -top rtcstopwatch -nordff
+write_smt2 -wires rtcstopwatch.smt2

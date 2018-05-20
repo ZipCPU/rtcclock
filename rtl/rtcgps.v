@@ -43,12 +43,12 @@
 //
 `default_nettype	none
 //
-module	rtcgps(i_clk,
+module	rtcgps(i_clk, i_reset,
 		// Wishbone interface
-		i_wb_cyc, i_wb_stb, i_wb_we, i_wb_addr, i_wb_data,
+		i_wb_cyc, i_wb_stb, i_wb_we, i_wb_addr, i_wb_data, i_wb_sel,
 		//	o_wb_ack, o_wb_stb, o_wb_data, // no reads here
 		// Output registers
-		o_data, // multiplexed based upon i_wb_addr
+		o_wb_ack, o_wb_stall, o_wb_data, // mux'd based upon i_wb_addr
 		// Output controls
 		o_interrupt,
 		// A once-per-day strobe on the last clock of the day
@@ -58,13 +58,20 @@ module	rtcgps(i_clk,
 		// Our personal timing, for debug purposes
 		o_rtc_pps);
 	parameter	DEFAULT_SPEED = 32'd2814750; //2af31e = 2^48 / 100e6 MHz
+	// initial	ckspeed = 32'd786432000; // Verilator RT speed(roughly)
+	parameter [0:0]	OPT_WRITE_DELAY = 1'b0;
+	parameter [0:0]	F_OPT_CLK2FFLOGIC = 1'b0;
 	//
-	input	wire		i_clk;
+	input	wire		i_clk, i_reset;
 	//
 	input	wire		i_wb_cyc, i_wb_stb, i_wb_we;
 	input	wire	[1:0]	i_wb_addr;
 	input	wire	[31:0]	i_wb_data;
-	output	reg	[31:0]	o_data;
+	input	wire	[3:0]	i_wb_sel;
+	//
+	output	reg		o_wb_ack;
+	output	wire		o_wb_stall;
+	output	reg	[31:0]	o_wb_data;
 	output	wire		o_interrupt, o_ppd;
 	// GPS interface
 	input	wire		i_gps_valid, i_gps_pps;
@@ -72,436 +79,123 @@ module	rtcgps(i_clk,
 	// Personal PPS
 	output	wire		o_rtc_pps;
 
-	reg	[21:0]	clock;
-	reg	[31:0]	stopwatch, ckspeed;
-	reg	[25:0]	timer;
+	reg	[31:0]	ckspeed;
+	wire	[31:0]	alarm_data, timer_data;
+	wire	[30:0]	stopwatch_data;
+	wire	[21:0]	clock_data;
+	wire		sw_running, ck_ppd;
 
-	reg	ck_wr, tm_wr, sw_wr, al_wr, r_data_zero_byte;
-	reg	[25:0]	r_data;
+	reg	ck_wr, tm_wr, sw_wr, al_wr, wr_zero;
+	reg	[31:0]	wr_data;
+	reg	[3:3]	wr_sel;
+	reg	[2:0]	wr_valid;
+
+	initial	ck_wr = 1'b0;
+	initial	tm_wr = 1'b0;
+	initial	sw_wr = 1'b0;
+	initial	al_wr = 1'b0;
 	always @(posedge i_clk)
+	if (i_reset)
 	begin
+		ck_wr <= 1'b0;
+		tm_wr <= 1'b0;
+		sw_wr <= 1'b0;
+		al_wr <= 1'b0;
+	end else begin
 		ck_wr <= ((i_wb_stb)&&(i_wb_addr==2'b00)&&(i_wb_we));
 		tm_wr <= ((i_wb_stb)&&(i_wb_addr==2'b01)&&(i_wb_we));
 		sw_wr <= ((i_wb_stb)&&(i_wb_addr==2'b10)&&(i_wb_we));
 		al_wr <= ((i_wb_stb)&&(i_wb_addr==2'b11)&&(i_wb_we));
-		r_data <= i_wb_data[25:0];
-		r_data_zero_byte <= (i_wb_data[7:0] == 8'h00);
 	end
+
+	always @(posedge i_clk)
+	begin
+
+		wr_data <= i_wb_data;
+		wr_sel[3]   <= i_wb_sel[3];
+		wr_valid[0] <= (i_wb_sel[0])&&(i_wb_data[3:0] <= 4'h9)
+				&&(i_wb_data[7:4] <= 4'h5);
+		wr_valid[1] <= (i_wb_sel[1])&&(i_wb_data[11:8] <= 4'h9)
+				&&(i_wb_data[15:12] <= 4'h5);
+		wr_valid[2] <= (i_wb_sel[2])&&(i_wb_data[19:16] <= 4'h9)
+				&&(i_wb_data[21:16] <= 6'h21);
+		wr_zero     <= (i_wb_data[23:0]==0);
+	end
+
+	wire	tm_int, al_int;
+
+	rtcbare	clock(i_clk, i_reset, ck_pps,
+			ck_wr, wr_data[21:0], wr_valid, clock_data, ck_ppd);
+
+	rtctimer #(.LGSUBCK(8))
+		timer(i_clk, i_reset, ck_sub_carry,tm_wr, wr_data[24:0],
+			wr_valid, wr_zero, timer_data, tm_int);
+
+	rtcstopwatch rtcstop(i_clk, i_reset, ckspeed,
+				(sw_wr)&&(wr_sel[3])&&(!sw_running),
+				(sw_wr)&&(wr_sel[3])&&(sw_running),
+				stopwatch_data,
+				sw_running);
+
+	rtcalarm alarm(i_clk, i_reset, clock_data[21:0],
+				al_wr, wr_data[25], wr_data[24],
+					wr_data[21:0], wr_valid,
+				alarm_data, al_int);
 
 	reg	[39:0]	ck_counter;
 	reg		ck_carry, ck_sub_carry;
+
+	initial	ck_carry = 1'b0;
+	initial	ck_sub_carry = 1'b0;
+	initial	ck_counter = 0;
 	always @(posedge i_clk)
-		if ((i_gps_valid)&&(i_gps_pps))
-		begin
-			ck_carry   <= 0;
-			// Start our counter 2 clocks into the future.
-			// Why?  Because if we hit the PPS, we'll be delayed
-			// one clock from true time.  This (hopefully) locks
-			// us back onto true time.  Further, if we end up
-			// off (i.e., go off before the GPS tick ...) then
-			// the GPS tick will put us back on track ... likewise
-			// we've got code following that should keep us from
-			// ever producing two PPS's per second.
-			ck_counter <= { 7'h00, ckspeed, 1'b0 };
-			ck_sub_carry <= ckspeed[31];
-		end else begin
-			{ ck_sub_carry, ck_counter[31:0] }
-				<= ck_counter[31:0] + ckspeed;
-			{ ck_carry, ck_counter[39:32] }
-				<= ck_counter[39:32] + { 7'h0, ck_sub_carry };
-		end
+	if (i_reset)
+	begin
+		ck_counter   <= 0;
+		ck_carry     <= 1'b0;
+		ck_sub_carry <= 1'b0;
+	end else if ((i_gps_valid)&&(i_gps_pps))
+	begin
+		ck_carry   <= 0;
+		// Start our counter 2 clocks into the future.
+		// Why?  Because if we hit the PPS, we'll be delayed
+		// one clock from true time.  This (hopefully) locks
+		// us back onto true time.  Further, if we end up
+		// off (i.e., go off before the GPS tick ...) then
+		// the GPS tick will put us back on track ... likewise
+		// we've got code following that should keep us from
+		// ever producing two PPS's per second.
+		ck_counter   <= { 7'h00, ckspeed, 1'b0 };
+		ck_sub_carry <= ckspeed[31];
+
+	end else begin
+
+		{ ck_sub_carry, ck_counter[31:0] }
+			<= ck_counter[31:0] + ckspeed;
+		{ ck_carry, ck_counter[39:32] }
+			<= ck_counter[39:32] + { 7'h0, ck_sub_carry };
+
+	end
+
+	wire	[7:0]	ck_sub;
+	assign	ck_sub = ck_counter[39:32];
 
 	reg		ck_pps;
-	reg		ck_ppm, ck_pph, ck_ppd;
-	reg	[7:0]	ck_sub;
-	initial	clock = 22'h00000000;
 	always @(posedge i_clk)
 		if ((i_gps_pps)&&(i_gps_valid)&&(ck_sub[7]))
+			// If the GPS is ahead of us, jump forward and set
+			// the PPS high
 			ck_pps <= 1'b1;
-		else if ((ck_carry)&&(ck_sub == 8'hff))
+		else if ((ck_carry)&&(ck_sub == 8'h00))
+			// Otherwise, if there is no GPS, or if the GPS is
+			// late, then set the ck_pps on the roll over of
+			// ck_sub
 			ck_pps <= 1'b1;
 		else
+			// in all other cases, ck_pps should be zero.  It's a
+			// strobe signal that should only (if ever) be true
+			// for a single clock cycle per second
 			ck_pps <= 1'b0;
-
-	reg	[6:0]	next_clock_secs;
-	always @(posedge i_clk)
-	begin
-		next_clock_secs[3:0] <= (clock[3:0] >= 4'h9) ? 4'h0 // clk 1
-						: (clock[3:0] + 4'h1);
-		next_clock_secs[6:4] <= (ck_ppm) ? 3'h0 // clk 2
-					: (clock[3:0] >= 4'h9)
-						? (clock[6:4] + 3'h1)
-						: clock[6:4];
-	end
-
-	reg	[6:0]	next_clock_mins;
-	always @(posedge i_clk)
-	begin
-		next_clock_mins[3:0] <= (clock[11:8] >= 4'h9) ? 4'h0
-						: (clock[11:8] + 4'h1);
-		next_clock_mins[6:4] <= (ck_pph) ? 3'h0
-					: (clock[11:8] >= 4'h9)
-						? (clock[14:12] + 3'h1)
-						: clock[14:12];
-	end
-
-	reg	[5:0]	next_clock_hrs;
-	always @(posedge i_clk)
-	begin
-		next_clock_hrs[3:0] <= (clock[19:16] >= 4'h9) ? 4'h0
-						: (clock[19:16] + 4'h1);
-		next_clock_hrs[5:4] <= (ck_ppd) ? 2'h0
-					: (clock[19:16] >= 4'h9)
-						? (clock[21:20] + 2'h1)
-						: (clock[21:20]);
-	end
-
-	reg	[4:0] ck_pending;
-	assign	o_rtc_pps = ck_pps;
-	always @(posedge i_clk)
-	begin
-		if ((i_gps_valid)&&(i_gps_pps))
-			ck_sub <= 0;
-		else if (ck_carry)
-			ck_sub <= ck_sub + 1;
-
-		if ((ck_pps)&&(!ck_pending[4])) // advance the seconds
-			clock[6:0] <= next_clock_secs;
-		clock[7] <= 1'b0;
-		ck_ppm <= (clock[6:0] >= 7'h59);
-
-		if ((ck_pps)&&(ck_ppm)&&(!ck_pending[4])) // advance the minutes
-			clock[14:8] <= next_clock_mins;
-		clock[15] <= 1'b0;
-		ck_pph <= (clock[14:8] >= 7'h59)&&(ck_ppm);
-
-		if ((ck_pps)&&(ck_pph)&&(!ck_pending[4])) // advance the hours
-			clock[21:16] <= next_clock_hrs;
-		ck_ppd <= (clock[21:16] == 6'h23)&&(ck_pph);
-
-		clock[ 7] <= 1'b0;
-		clock[15] <= 1'b0;
-
-		if (ck_wr)
-		begin
-			if (!r_data[7])
-			begin
-				if (r_data[3:0] >= 4'h9)
-					clock[3:0] <= 4'h9;
-				else
-					clock[3:0] <= r_data[3:0];
-
-				if (r_data[6:4] >= 4'h5)
-					clock[6:4] <= 4'h5;
-				else
-					clock[6:4] <= r_data[6:4];
-			end
-
-			if (!r_data[15])
-			begin
-				if (r_data[11:8] >= 4'h9)
-					clock[11:8] <= 4'h9;
-				else
-					clock[11:8] <= r_data[11:8];
-
-				if (r_data[
-				clock[14:8] <= r_data[14:8];
-			if (!r_data[22])
-				clock[21:16] <= r_data[21:16];
-			if ((!i_gps_valid)&&(r_data_zero_byte))
-				ck_sub <= 8'h00;
-			ck_pending <= 5'h1f;
-		end else
-			ck_pending <= { ck_pending[3:0], 1'b0 };
-	end
-
-	reg	[21:0]	ck_last_clock;
-	always @(posedge i_clk)
-		ck_last_clock <= clock[21:0];
-
-
-
-	//
-	reg	[23:0]	next_timer;
-	reg		ztimer;
-	reg	[4:0]	tmr_carry;
-	initial	tmr_carry = 0;
-	initial	next_timer = 0;
-	always @(posedge i_clk)
-	begin
-		tmr_carry[0] <= (timer[ 3: 0]== 4'h0);
-		tmr_carry[1] <= (timer[ 6: 4]== 3'h0)&&(tmr_carry[0]);
-		tmr_carry[2] <= (timer[11: 8]== 4'h0)&&(tmr_carry[1]);
-		tmr_carry[3] <= (timer[14:12]== 3'h0)&&(tmr_carry[2]);
-		tmr_carry[4] <= (timer[19:16]== 4'h0)&&(tmr_carry[3]);
-		ztimer <= (timer[23:0]== 24'h0);
-
-		// Keep unused bits at zero
-		next_timer <= 24'h00;
-		// Seconds
-		next_timer[ 3: 0] <= (tmr_carry[0])? 4'h9: (timer[ 3: 0]-4'h1);
-		next_timer[ 6: 4] <= (tmr_carry[1])? 3'h5: (timer[ 6: 4]-3'h1);
-		// Minutes
-		next_timer[11: 8] <= (tmr_carry[2])? 4'h9: (timer[11: 8]-4'h1);
-		next_timer[14:12] <= (tmr_carry[3])? 3'h5: (timer[14:12]-3'h1);
-		// Hours
-		next_timer[19:16] <= (tmr_carry[4])? 4'h9: (timer[19:16]-4'h1);
-		next_timer[23:20] <= (timer[23:20]-4'h1);
-	end
-
-	reg	new_timer, new_timer_set, new_timer_last;
-	reg	[23:0]	new_timer_val;
-
-	reg	tm_pps, tm_int;
-	wire	tm_stopped, tm_running, tm_alarm;
-	assign	tm_stopped = !timer[24];
-	assign	tm_running =  timer[24];
-	assign	tm_alarm   =  timer[25];
-	reg	[23:0]		tm_start;
-	reg	[7:0]		tm_sub;
-	initial	tm_start = 24'h00;
-	initial	timer    = 26'h00;
-	initial	tm_int   = 1'b0;
-	initial	tm_pps   = 1'b0;
-	always @(posedge i_clk)
-	begin
-		if (ck_carry)
-		begin
-			tm_sub <= tm_sub + 1;
-			tm_pps <= (tm_sub == 8'hff);
-		end else
-			tm_pps <= 1'b0;
-
-		if (new_timer_set) // Conclude a write
-		begin
-			if (new_timer_val[3:0] >= 4'h9)
-				timer[3:0] <= 4'h9;
-			else
-				timer[3:0] <= new_timer[3:0];
-			if (new_timer_val[6:4] >= 4'h5)
-				new_timer_val[6:4] <= 4'h5;
-			else
-				timer[6:4] <= new_timer[6:4];
-			if (new_timer_val[11:8] >= 4'h9)
-				new_timer_val[11:8] <= 4'h9;
-			else
-				timer[11:8] <= new_timer[11:8];
-			if (new_timer_val[14:12] >= 4'h5)
-				new_timer_val[14:12] <= 4'h5;
-			else
-				timer[14:12] <= new_timer[14:12];
-			if (new_timer_val[19:16] >= 4'h9)
-				new_timer_val[19:16] <= 4'h9;
-			else
-				timer[19:16] <= new_timer[19:16];
-
-			timer[23:20] <= new_timer_val[23:20];
-		end else if ((!tm_alarm)&&(tm_running)&&(tm_pps))
-		begin // Otherwise, if we are running ...
-			timer[25] <= 1'b0; // Clear any alarm
-			if (ztimer) // unless we've hit zero
-				timer[25] <= 1'b1;
-			else if (!new_timer)
-				timer[23:0] <= next_timer;
-		end
-
-		timer[ 7] <= 1'b0;
-		timer[15] <= 1'b0;
-
-		tm_int <= (tm_running)&&(tm_pps)&&(!tm_alarm)&&(ztimer);
-
-		if (tm_alarm) // Stop the timer on an alarm
-			timer[24] <= 1'b0;
-
-		new_timer <= 1'b0;
-		if ((tm_wr)&&(tm_running)) // Writes while running
-			// Only allow the timer to stop, nothing more
-			timer[24] <= r_data[24];
-		else if ((tm_wr)&&(tm_stopped)) // Writes while off
-		begin
-			// We're going to pipeline this change by a couple
-			// of clocks, to get it right
-			new_timer <= 1'b1;
-			new_timer_val <= r_data[23:0];
-
-			// Still ... any write clears the alarm
-			timer[25] <= 1'b0;
-		end
-
-		new_timer_set  <= (new_timer)&&(new_timer_val != 24'h000);
-		new_timer_last <= (new_timer)&&(new_timer_val == 24'h000);
-		if (new_timer_last)
-		begin
-			new_timer_val <= tm_start;
-			tm_sub <= 8'h00;
-			new_timer_set <= 1'b1;
-		end else if (new_timer_set)
-		begin
-			tm_start <= new_timer_val;
-			tm_sub <= 8'h00;
-			timer[24] <= 1'b1;
-		end
-	end
-
-	//
-	// Stopwatch functionality
-	//
-	// Setting bit '0' starts the stop watch, clearing it stops it.
-	// Writing to the register with bit '1' high will clear the stopwatch,
-	// and return it to zero provided that the stopwatch is stopped either
-	// before or after the write.  Hence, writing a '2' to the device
-	// will always stop and clear it, whereas writing a '3' to the device
-	// will only clear it if it was already stopped.
-	reg	[6:0]	next_sw_secs;
-	initial	next_sw_secs = 0;
-	always @(posedge i_clk)
-	begin
-		next_sw_secs[3:0] <= (stopwatch[11:8] >= 4'h9) ? 4'h0
-						: (stopwatch[11:8] + 4'h1);
-		next_sw_secs[6:4] <= (stopwatch[14:8] == 7'h59) ? 3'h0
-					: (stopwatch[11:8] == 4'h9)
-						? (stopwatch[14:12]+3'h1)
-						: stopwatch[14:12];
-	end
-
-	reg	[6:0]	next_sw_mins;
-	initial	next_sw_mins = 0;
-	always @(posedge i_clk)
-	begin
-		next_sw_mins[3:0] <= (stopwatch[19:16] >= 4'h9) ? 4'h0
-						: (stopwatch[19:16] + 4'h1);
-		next_sw_mins[6:4] <= (stopwatch[22:16] == 7'h59) ? 3'h0
-					: (stopwatch[19:16]==4'h9)
-						? (stopwatch[22:20]+3'h1)
-						: stopwatch[22:20];
-	end
-
-	reg	[5:0]	next_sw_hrs;
-	initial	next_sw_hrs = 0;
-	always @(posedge i_clk)
-	begin
-		next_sw_hrs[3:0] <= (stopwatch[27:24] >= 4'h9) ? 4'h0
-						: (stopwatch[27:24] + 4'h1);
-		next_sw_hrs[5:4] <= (stopwatch[29:24] >= 6'h23) ? 2'h0
-					: (stopwatch[27:24]==4'h9)
-						? (stopwatch[29:28]+2'h1)
-						: stopwatch[29:28];
-	end
-
-	reg		sw_pps, sw_ppm, sw_pph;
-	reg	[7:0]	sw_sub;
-	wire	sw_running;
-	assign	sw_running = stopwatch[0];
-	initial	stopwatch = 32'h00000;
-	always @(posedge i_clk)
-	begin
-		sw_pps <= 1'b0;
-		if ((sw_running)&&(ck_carry))
-		begin
-			sw_sub <= sw_sub + 1;
-			sw_pps <= (sw_sub == 8'hff);
-		end
-
-		stopwatch[7:1] <= sw_sub[7:1];
-
-		if (sw_pps) // Second hand
-			stopwatch[14:8] <= next_sw_secs;
-		sw_ppm <= (stopwatch[14:8] == 7'h59);
-
-		if ((sw_pps)&&(sw_ppm)) // Minutes
-			stopwatch[22:16] <= next_sw_mins;
-		sw_pph <= (stopwatch[23:16] == 8'h59)&&(sw_ppm);
-
-		if ((sw_pps)&&(sw_pph)) // And hours
-			stopwatch[29:24] <= next_sw_hrs;
-
-		if (sw_wr)
-		begin
-			stopwatch[0] <= r_data[0];
-			if((r_data[1])&&((!stopwatch[0])||(!r_data[0])))
-			begin
-				stopwatch[31:1] <= 31'h00;
-				sw_sub <= 8'h00;
-				sw_pps <= 1'b0;
-				sw_ppm <= 1'b0;
-				sw_pph <= 1'b0;
-			end
-		end
-	end
-	//
-	// The alarm code
-	//
-	// Set the alarm register to the time you wish the board to "alarm".
-	// The "alarm" will take place once per day at that time.  At that
-	// time, the RTC code will generate a clock interrupt, and the CPU/host
-	// can come and see that the alarm tripped.
-	//
-	//
-	reg	[21:0]		alarm_time;
-	reg			al_int,		// The alarm interrupt line
-				al_enabled,	// Whether the alarm is enabled
-				al_tripped;	// Whether the alarm has tripped
-	initial	al_enabled= 1'b0;
-	initial	al_tripped= 1'b0;
-	always @(posedge i_clk)
-	begin
-		if (al_wr)
-		begin
-			// Only adjust the alarm hours if the requested hours
-			// are valid.  This allows writes to the register,
-			// without a prior read, to leave these configuration
-			// bits alone.
-			if (r_data[21:20] != 2'h3)
-			begin
-				alarm_time[21:20] <= r_data[21:20];
-
-				if (r_data[21:20] == 2'h2)
-				else begin
-					if (r_data[19:16] <= 4'h3)
-						alarm_time[19:16] <= r_data[19:16];
-				end else if (r_data[19:16] <= 4'h9)
-					alarm_time[19:16] <= r_data[19:16];
-			end
-
-			// Here's the same thing for the minutes: only adjust
-			// the alarm minutes if the new bits are not all 1's.
-			if (!r_data[15])
-			begin
-
-				if (r_data[14:12] <= 3'h5)
-				begin
-					alarm_time[14:12] <= r_data[14:12];
-					if (r_data[11:8] <= 4'h9)
-						alarm_time[11:8] <= r_data[11:8];
-				end
-			end
-			alarm_time[15] <= 1'b0;
-
-			// Here's the same thing for the seconds: only adjust
-			// the alarm seconds if the new bits are not all 1's.
-			if (!r_data[7])
-			begin
-				if (r_data[6:4] <= 4'h5)
-				begin
-					alarm_time[6:4] <= r_data[6:4];
-					if (r_data[3:0] <= 4'h9)
-						alarm_time[3:0] <= r_data[3:0];
-				end
-			end
-			alarm_time[7] <= 1'b0;
-
-			al_enabled <= r_data[24];
-			// Reset the alarm if a '1' is written to the tripped
-			// register, or if the alarm is disabled.
-			if ((r_data[25])||(!r_data[24]))
-				al_tripped <= 1'b0;
-		end
-
-		al_int <= ((ck_last_clock != alarm_time)
-				&&(clock[21:0] == alarm_time)&&(al_enabled));
-		if (al_int)
-			al_tripped <= 1'b1;
-	end
 
 	//
 	// The ckspeed register is equal to 2^48 divded by the number of
@@ -513,11 +207,6 @@ module	rtcgps(i_clk,
 	// 1 part in 65 thousand.
 	//
 	initial	ckspeed = DEFAULT_SPEED;
-	// In the case of verilator, comment the above and uncomment the line
-	// below.  The clock constant below is "close" to simulation time,
-	// meaning that my verilator simulation is running about 300x slower
-	// than board time.
-	// initial	ckspeed = 32'd786432000;
 	always @(posedge i_clk)
 		if (i_gps_valid)
 			ckspeed <= i_gps_ckspeed;
@@ -529,155 +218,50 @@ module	rtcgps(i_clk,
 	// connecting this module to a year/month/date date/calendar module.
 	assign	o_ppd = (ck_ppd)&&(ck_pps);
 
+	initial	o_wb_data = 0;
 	always @(posedge i_clk)
 		case(i_wb_addr)
-		2'b00: o_data <= { !i_gps_valid, 7'h0, 2'b00, clock[21:0] };
-		2'b01: o_data <= { 6'h00, timer };
-		2'b10: o_data <= stopwatch;
-		2'b11: o_data <= { 6'h00, al_tripped, al_enabled, 2'b00, alarm_time };
+		2'b00: o_wb_data <= { !i_gps_valid, 7'h0, 2'b00,clock_data[21:0] };
+		2'b01: o_wb_data <= timer_data;
+		2'b10: o_wb_data <= { sw_running, stopwatch_data };
+		2'b11: o_wb_data <= alarm_data;
 		endcase
+
+	assign	o_rtc_pps = ck_pps;
+
+	initial	o_wb_ack = 0;
+	always @(posedge i_clk)
+	if (i_reset)
+		o_wb_ack <= 0;
+	else
+		o_wb_ack <= i_wb_stb;
+
+	assign	o_wb_stall = 0;
 
 	// Make verilator happy
 	// verilator lint_off UNUSED
 	wire	[6:0] unused;
-	assign	unused = { i_wb_cyc, i_wb_data[31:26] };
+	assign	unused = { i_wb_cyc, wr_data[31:26] };
 	// verilator lint_on  UNUSED
 
 `ifdef	FORMAL
 `ifdef	RTCGPS
 `define	ASSUME	assume
-	reg	f_last_clk;
-	initial	assume(f_last_clk == 1);
-	initial	assume(i_clk == 0);
-	always @($global_clock)
-	begin
-		assume(i_clk != f_last_clk);
-		f_last_clk <= !f_last_clk;
-	end
+`define	ASSERT	assert
 `else
 `define	ASSUME	assert
+`define	ASSERT	assume
 `endif
-	reg	f_past_valid;
-	initial	f_past_valid = 1'b0;
-	always @(posedge i_clk)
-		f_past_valid <= 1'b1;
 
-	initial	`ASSUME(!i_wb_cyc_stb);
-	initial	assume(!i_wb_we);
-	initial	assume(!i_wb_sel);
-	initial	`ASSUME(!i_ppd);
-	always @($global_clock)
-	if (!$rose(i_clk))
-	begin
-		`ASSUME($stable(i_ppd));
-		`ASSUME($stable(i_wb_cyc));
-		`ASSUME($stable(i_wb_stb));
-		`ASSUME($stable(i_wb_we));
-		`ASSUME($stable(i_wb_addr));
-		`ASSUME($stable(i_wb_data));
-		// `ASSUME($stable(i_wb_sel));
-		`ASSUME($stable(i_gps_valid));
-		`ASSUME($stable(i_gps_pps));
-		`ASSUME($stable(i_gps_ckspeed));
+	always @(*)
+		`ASSUME(i_gps_ckspeed >0);
+	always @(*)
+		`ASSUME(!i_gps_ckspeed[31]);
 
-		if (f_past_valid)
-		begin
-			assert($stable(o_data));
-			assert($stable(o_interrupt));
-			assert($stable(o_ppd));
-			assert($stable(o_rtc_pps));
-		end
-	end
-
-	reg	f_write;
-	initial	f_write = 1'b0;
-	always @(posedge i_clk)
-		f_write <= (i_wb_stb)&&(i_wb_we);
-
-	//
-	//
-	// Timer assertions
-	//
-	//
-	initial	assert(tm_stopped);
-	initial	assert(!tm_alarm);
-	always @(posedge i_clk)
-	if (f_past_valid)
-	begin
-		assert(tm[ 3: 0] <= 4'h9);
-		assert(tm[ 7: 4] <= 4'h5);
-		assert(tm[11: 8] <= 4'h9);
-		assert(tm[15:12] <= 4'h5);
-		assert(tm[19:16] <= 4'h9);
-
-		if ((i_wb_stb)&&(i_wb_we)&&(i_wb_addr == 2'b01))
-		begin
-			assume(i_wb_addr[ 3: 0] <= 4'h9);
-			assume(i_wb_addr[ 7: 4] <= 4'h5);
-			assume(i_wb_addr[11: 8] <= 4'h9);
-			assume(i_wb_addr[15:12] <= 4'h5);
-			assume(i_wb_addr[19:16] <= 4'h9);
-			// assume(i_wb_addr[21:20] <= 2'h3);
-		end
-
-
-		if ($past(!tm_running))
-			assert($stable(timer));
-		else if (($past(ck_carry))&&($past(tm_pps)))
-		begin
-			if ($past(timer[3:0] != 4'h0))
-				assert($stable(timer[23:4]));
-			if ($past(timer[6:0] != 7'h00))
-				assert($stable(timer[23:8]));
-			if ($past(timer[11:0] != 12'h0000))
-				assert($stable(timer[23:12]));
-			if ($past(timer[15:0] != 16'h0000))
-				assert($stable(timer[23:16]));
-			if ($past(timer[19:0] != 20'h00000))
-				assert($stable(timer[21:20]));
-		end else
-			assert($stable(timer));
-
-		if (tm_alarm)
-			assert($past(timer[21:0] == 0));
-	end
-
-	//
-	//
-	// Stopwatch asserts
-	//
-	//
-	initial	sw_running = stopwatch[0];
-	always @(posedge i_clk)
-	begin
-		assert(stopwatch[14: 8] <= 7'h59);
-		assert(stopwatch[11: 8] <= 4'h9);
-		assert(stopwatch[23:16] <= 7'h59);
-		assert(stopwatch[19:16] <= 4'h9);
-	end
-
-	always @(posedge i_clk)
-		if ((f_past_valid)&&(ck_carry))
-		begin
-			assert(sw_pps == (stopwatch[ 7: 0] == 7'hff));
-			assert(sw_ppm == (stopwatch[14: 8] == 7'h59));
-			assert(sw_pph == (stopwatch[23:16] == 7'h59));
-		end
-
-	//
-	//
-	// Alarm asserts
-	//
-	//
-	always @(posedge i_clk)
-	begin
-		assert(alarm_time[ 3: 0] <= 4'h9);
-		assert(alarm_time[ 7: 0] <= 8'h59);
-		assert(alarm_time[11: 8] <= 4'h9);
-		assert(alarm_time[15: 8] <= 8'h59);
-		assert(alarm_time[19:16] <= 4'h9);
-		assert(alarm_time[21:16] <= 8'h23);
-	end
+//	reg	f_past_valid;
+//	initial	f_past_valid = 1'b0;
+//	always @(posedge i_clk)
+//		f_past_valid <= 1'b1;
 
 `endif
 endmodule

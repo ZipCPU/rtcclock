@@ -6,9 +6,8 @@
 ##
 ## Purpose:	This is the Makefile to build the verilator test bench code
 ##		from the RTL code.  The TB code in the bench/cpp directory
-##		will then reference the library results from this file.
-##		To build the verilator libraries, just type 'make' on a line
-##		by itself.
+##	will then reference the library results from this file.  To build the
+##	verilator libraries, just type 'make' on a line by itself.
 ##
 ## Creator:	Dan Gisselquist, Ph.D.
 ##		Gisselquist Tecnology, LLC
@@ -44,7 +43,8 @@ all: rtcdate rtcclock rtclight rtcgps
 OBJDR := ./obj_dir
 BENCHD := ../bench/cpp
 VERILATOR := verilator
-VFLAGS := -Wall -trace -cc
+VFLAGS := -Wall -MMD -trace -cc
+SUBMAKE := $(MAKE) --no-print-directory -C
 
 .PHONY: rtcclock
 rtcclock: $(OBJDR)/Vrtcclock__ALL.a
@@ -52,7 +52,7 @@ $(OBJDR)/Vrtcclock.cpp $(OBJDR)/Vrtcclock.h: rtcclock.v
 	$(VERILATOR) $(VFLAGS) rtcclock.v
 $(OBJDR)/Vrtcclock__ALL.a: $(OBJDR)/Vrtcclock.h
 $(OBJDR)/Vrtcclock__ALL.a: $(OBJDR)/Vrtcclock.cpp
-	cd $(OBJDR)/; make -f Vrtcclock.mk
+	$(SUBMAKE) $(OBJDR)/ -f Vrtcclock.mk
 
 .PHONY: rtcdate
 rtcdate: $(OBJDR)/Vrtcdate__ALL.a
@@ -60,7 +60,7 @@ $(OBJDR)/Vrtcdate.cpp $(OBJDR)/Vrtcdate.h: rtcdate.v
 	$(VERILATOR) $(VFLAGS) rtcdate.v
 $(OBJDR)/Vrtcdate__ALL.a: $(OBJDR)/Vrtcdate.h
 $(OBJDR)/Vrtcdate__ALL.a: $(OBJDR)/Vrtcdate.cpp
-	cd $(OBJDR)/; make -f Vrtcdate.mk
+	$(SUBMAKE) $(OBJDR)/ -f Vrtcdate.mk
 
 .PHONY: rtclight
 rtclight: $(OBJDR)/Vrtclight__ALL.a
@@ -68,7 +68,7 @@ $(OBJDR)/Vrtclight.cpp $(OBJDR)/Vrtclight.h: rtclight.v
 	$(VERILATOR) $(VFLAGS) rtclight.v
 $(OBJDR)/Vrtclight__ALL.a: $(OBJDR)/Vrtclight.h
 $(OBJDR)/Vrtclight__ALL.a: $(OBJDR)/Vrtclight.cpp
-	cd $(OBJDR)/; make -f Vrtclight.mk
+	$(SUBMAKE) $(OBJDR)/ -f Vrtclight.mk
 
 .PHONY: rtcgps
 rtcgps: $(OBJDR)/Vrtcgps__ALL.a
@@ -76,7 +76,13 @@ $(OBJDR)/Vrtcgps.cpp $(OBJDR)/Vrtcgps.h: rtcgps.v
 	$(VERILATOR) $(VFLAGS) rtcgps.v
 $(OBJDR)/Vrtcgps__ALL.a: $(OBJDR)/Vrtcgps.h
 $(OBJDR)/Vrtcgps__ALL.a: $(OBJDR)/Vrtcgps.cpp
-	cd $(OBJDR)/; make -f Vrtcgps.mk
+	$(SUBMAKE) $(OBJDR)/ -f Vrtcgps.mk
+
+DEPS := $(wildcard $(OBJDR)/*.d)
+
+ifneq ($(DEPS),)
+include $(DEPS)
+endif
 
 .PHONY: clean
 clean:
