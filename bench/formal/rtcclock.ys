@@ -1,0 +1,8 @@
+read_verilog -D RTCLIGHT -formal ../../rtl/rtcclock.v
+read_verilog -D RTCLIGHT -formal ../../rtl/hexmap.v
+read_verilog -D RTCLIGHT -formal ../../rtl/rtcbare.v
+read_verilog -D RTCLIGHT -formal ../../rtl/rtcalarm.v
+read_verilog -D RTCLIGHT -formal ../../rtl/rtctimer.v
+read_verilog -D RTCLIGHT -formal ../../rtl/rtcstopwatch.v
+prep -top rtcclock -nordff
+write_smt2 -wires rtcclock.smt2

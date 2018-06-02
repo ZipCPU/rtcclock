@@ -103,7 +103,6 @@ module	rtclight(i_clk, i_reset,
 
 	always @(posedge i_clk)
 	begin
-
 		wr_data <= i_wb_data;
 		wr_sel[3]   <= i_wb_sel[3];
 		wr_valid[0] <= (i_wb_sel[0])&&(i_wb_data[3:0] <= 4'h9)
@@ -111,7 +110,7 @@ module	rtclight(i_clk, i_reset,
 		wr_valid[1] <= (i_wb_sel[1])&&(i_wb_data[11:8] <= 4'h9)
 				&&(i_wb_data[15:12] <= 4'h5);
 		wr_valid[2] <= (i_wb_sel[2])&&(i_wb_data[19:16] <= 4'h9)
-				&&(i_wb_data[21:16] <= 6'h21);
+				&&(i_wb_data[21:16] <= 6'h23);
 		wr_zero     <= (i_wb_data[23:0]==0);
 	end
 
