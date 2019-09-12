@@ -39,7 +39,7 @@
 ##
 ##
 # This is really simple ...
-all: rtcdate rtcclock rtclight rtcgps
+all: rtcdate rtclight rtcgps rtcclock
 OBJDR := ./obj_dir
 BENCHD := ../bench/cpp
 VERILATOR := verilator
@@ -50,7 +50,7 @@ SUBMAKE := $(MAKE) --no-print-directory -C
 rtcclock: $(OBJDR)/Vrtcclock__ALL.a
 $(OBJDR)/Vrtcclock.cpp $(OBJDR)/Vrtcclock.h: rtcclock.v
 	$(VERILATOR) $(VFLAGS) rtcclock.v
-$(OBJDR)/Vrtcclock__ALL.a: $(OBJDR)/Vrtcclock.h
+# $(OBJDR)/Vrtcclock__ALL.a: $(OBJDR)/Vrtcclock.h
 $(OBJDR)/Vrtcclock__ALL.a: $(OBJDR)/Vrtcclock.cpp
 	$(SUBMAKE) $(OBJDR)/ -f Vrtcclock.mk
 
@@ -58,7 +58,7 @@ $(OBJDR)/Vrtcclock__ALL.a: $(OBJDR)/Vrtcclock.cpp
 rtcdate: $(OBJDR)/Vrtcdate__ALL.a
 $(OBJDR)/Vrtcdate.cpp $(OBJDR)/Vrtcdate.h: rtcdate.v
 	$(VERILATOR) $(VFLAGS) rtcdate.v
-$(OBJDR)/Vrtcdate__ALL.a: $(OBJDR)/Vrtcdate.h
+# $(OBJDR)/Vrtcdate__ALL.a: $(OBJDR)/Vrtcdate.h
 $(OBJDR)/Vrtcdate__ALL.a: $(OBJDR)/Vrtcdate.cpp
 	$(SUBMAKE) $(OBJDR)/ -f Vrtcdate.mk
 
@@ -66,7 +66,7 @@ $(OBJDR)/Vrtcdate__ALL.a: $(OBJDR)/Vrtcdate.cpp
 rtclight: $(OBJDR)/Vrtclight__ALL.a
 $(OBJDR)/Vrtclight.cpp $(OBJDR)/Vrtclight.h: rtclight.v
 	$(VERILATOR) $(VFLAGS) rtclight.v
-$(OBJDR)/Vrtclight__ALL.a: $(OBJDR)/Vrtclight.h
+# $(OBJDR)/Vrtclight__ALL.a: $(OBJDR)/Vrtclight.h
 $(OBJDR)/Vrtclight__ALL.a: $(OBJDR)/Vrtclight.cpp
 	$(SUBMAKE) $(OBJDR)/ -f Vrtclight.mk
 
@@ -74,7 +74,7 @@ $(OBJDR)/Vrtclight__ALL.a: $(OBJDR)/Vrtclight.cpp
 rtcgps: $(OBJDR)/Vrtcgps__ALL.a
 $(OBJDR)/Vrtcgps.cpp $(OBJDR)/Vrtcgps.h: rtcgps.v
 	$(VERILATOR) $(VFLAGS) rtcgps.v
-$(OBJDR)/Vrtcgps__ALL.a: $(OBJDR)/Vrtcgps.h
+# $(OBJDR)/Vrtcgps__ALL.a: $(OBJDR)/Vrtcgps.h
 $(OBJDR)/Vrtcgps__ALL.a: $(OBJDR)/Vrtcgps.cpp
 	$(SUBMAKE) $(OBJDR)/ -f Vrtcgps.mk
 

@@ -72,40 +72,37 @@ module	rtcclock(i_clk, i_reset,
 	reg	[31:0]	ckspeed;
 	reg	[1:0]	clock_display;
 
-	wire	[31:0]	stopwatch_data, timer_data, alarm_data;
+	wire	[31:0]	timer_data, alarm_data;
+	wire	[30:0]	stopwatch_data;
 	wire	[21:0]	clock_data;
 
 	wire	sp_sel;
 	assign	sp_sel = ((i_wb_stb)&&(i_wb_addr[2:0]==3'b100));
 
-	reg	ck_wr, tm_wr, sw_wr, al_wr;
+	reg	ck_wr, tm_wr, al_wr;
 
-	initial	{ ck_wr, tm_wr, sw_wr, al_wr } = 0;
+	initial	{ ck_wr, tm_wr, al_wr } = 0;
 	always @(posedge i_clk)
 	if (i_reset)
 	begin
 		ck_wr <= 1'b0;
 		tm_wr <= 1'b0;
-		sw_wr <= 1'b0;
 		al_wr <= 1'b0;
 	end else begin
 		ck_wr <= ((i_wb_stb)&&(i_wb_addr==3'b000)&&(i_wb_we));
 		tm_wr <= ((i_wb_stb)&&(i_wb_addr==3'b001)&&(i_wb_we));
-		sw_wr <= ((i_wb_stb)&&(i_wb_addr==3'b010)&&(i_wb_we));
 		al_wr <= ((i_wb_stb)&&(i_wb_addr==3'b011)&&(i_wb_we));
 	end
 
 	wire	tm_int, al_int;
 
 	reg	[25:0]	wr_data;
-	reg	[3:3]	wr_sel;
 	reg	[2:0]	wr_valid;
 	reg		wr_zero;
 
 	always @(posedge i_clk)
 	begin
 		wr_data     <= i_wb_data[25:0];
-		wr_sel[3]   <= i_wb_sel[3];
 		wr_valid[0] <= (i_wb_sel[0])&&(i_wb_data[3:0] <= 4'h9)
 				&&(i_wb_data[7:4] <= 4'h5);
 		wr_valid[1] <= (i_wb_sel[1])&&(i_wb_data[11:8] <= 4'h9)
@@ -172,12 +169,20 @@ module	rtcclock(i_clk, i_reset,
 	generate if (OPT_STOPWATCH)
 	begin
 
-		rtcstopwatch rtcstop(i_clk, i_reset, ckspeed,
-			(sw_wr)&&(wr_sel[3])&&(!sw_running),
-			(sw_wr)&&(wr_sel[3])&&(sw_running),
-			stopwatch_data[30:0], sw_running);
+		reg	[2:0]	sw_ctrl;
+		initial	sw_ctrl = 0;
+		always @(posedge i_clk)
+		if (i_reset)
+			sw_ctrl <= 0;
+		else if (i_wb_stb && i_wb_we && i_wb_sel[0] && i_wb_addr == 3'b010)
+			sw_ctrl <= { i_wb_data[1:0], !i_wb_data[0] };
+		else
+			sw_ctrl <= 0;
 
-		assign	stopwatch_data[31] = 1'b0;
+		rtcstopwatch rtcstop(i_clk, i_reset, ckspeed,
+			sw_ctrl[2], sw_ctrl[1], sw_ctrl[0],
+			stopwatch_data, sw_running);
+
 	end else begin
 
 		assign	stopwatch_data = 0;
@@ -344,7 +349,7 @@ module	rtcclock(i_clk, i_reset,
 		case(i_wb_addr[2:0])
 		3'b000: o_data <= { 6'h00, clock_display, 2'b00, clock_data[21:0] };
 		3'b001: o_data <= timer_data;
-		3'b010: o_data <= stopwatch_data;
+		3'b010: o_data <= { sw_running, stopwatch_data };
 		3'b011: o_data <= alarm_data;
 		3'b100: o_data <= ckspeed;
 		3'b101: o_data <= { 2'b00, hack_time };
