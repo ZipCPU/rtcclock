@@ -5,4 +5,7 @@ jobs:
       - image: circleci/ruby:2.4.1
     steps:
       - checkout
-      - run "make ci"
+      - run:
+          name: Verilator lint check
+          command: |
+            echo "make rtl"
