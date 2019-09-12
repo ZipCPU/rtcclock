@@ -1,7 +1,0 @@
-read_verilog -D RTCGPS -formal ../../rtl/rtcgps.v
-read_verilog -D RTCGPS -formal ../../rtl/rtcbare.v
-read_verilog -D RTCGPS -formal ../../rtl/rtcalarm.v
-read_verilog -D RTCGPS -formal ../../rtl/rtctimer.v
-read_verilog -D RTCGPS -formal ../../rtl/rtcstopwatch.v
-prep -top rtcgps -nordff
-write_smt2 -wires rtcgps.smt2

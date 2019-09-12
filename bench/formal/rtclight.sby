@@ -1,0 +1,22 @@
+[tasks]
+prf
+[options]
+mode prove
+
+[engines]
+smtbmc
+
+[script]
+read_verilog -D RTCLIGHT -formal rtclight.v
+read_verilog -D RTCLIGHT -formal rtcbare.v
+read_verilog -D RTCLIGHT -formal rtcalarm.v
+read_verilog -D RTCLIGHT -formal rtctimer.v
+read_verilog -D RTCLIGHT -formal rtcstopwatch.v
+prep -top rtclight
+
+[files]
+../../rtl/rtclight.v
+../../rtl/rtcbare.v
+../../rtl/rtcalarm.v
+../../rtl/rtctimer.v
+../../rtl/rtcstopwatch.v

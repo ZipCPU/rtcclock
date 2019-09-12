@@ -1,3 +1,0 @@
-read_verilog -D RTCALARM -formal ../../rtl/rtcalarm.v
-prep -top rtcalarm -nordff
-write_smt2 -wires rtcalarm.smt2

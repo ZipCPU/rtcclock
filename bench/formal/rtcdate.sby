@@ -1,0 +1,16 @@
+[tasks]
+prf
+
+[options]
+mode prove
+
+[engines]
+smtbmc
+
+[script]
+read_verilog -D RTCDATE -formal rtcdate.v
+prep -top rtcdate
+
+[files]
+../../rtl/rtcdate.v
+

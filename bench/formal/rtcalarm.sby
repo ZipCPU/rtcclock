@@ -1,0 +1,18 @@
+[tasks]
+checkinp
+validated
+
+[options]
+mode prove
+
+[engines]
+smtbmc boolector
+
+[script]
+read_verilog -D RTCALARM -formal rtcalarm.v
+checkinp:  chparam -set OPT_PREVALIDATED_INPUT 0 rtcalarm
+validated: chparam -set OPT_PREVALIDATED_INPUT 1 rtcalarm
+prep -top rtcalarm
+
+[files]
+../../rtl/rtcalarm.v

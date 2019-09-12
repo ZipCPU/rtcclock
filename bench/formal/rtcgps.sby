@@ -1,0 +1,23 @@
+[tasks]
+prf
+
+[options]
+mode prove
+
+[engines]
+smtbmc
+
+[script]
+read_verilog -D RTCGPS -formal rtcgps.v
+read_verilog -D RTCGPS -formal rtcbare.v
+read_verilog -D RTCGPS -formal rtcalarm.v
+read_verilog -D RTCGPS -formal rtctimer.v
+read_verilog -D RTCGPS -formal rtcstopwatch.v
+prep -top rtcgps
+
+[files]
+../../rtl/rtcgps.v
+../../rtl/rtcbare.v
+../../rtl/rtcalarm.v
+../../rtl/rtctimer.v
+../../rtl/rtcstopwatch.v

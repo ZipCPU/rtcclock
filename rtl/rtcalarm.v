@@ -12,7 +12,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 //
-// Copyright (C) 2015-2018, Gisselquist Technology, LLC
+// Copyright (C) 2015-2019, Gisselquist Technology, LLC
 //
 // This program is free software (firmware): you can redistribute it and/or
 // modify it under the terms of  the GNU General Public License as published
@@ -41,16 +41,21 @@
 // set, clear, turn on, turn off
 module	rtcalarm(i_clk, i_reset, i_now,
 		//
-		i_wr, i_clear, i_enable, i_when, i_valid,
+		i_wr, i_clear, i_enable, i_alarm_time, i_valid,
 		//
 		o_data, o_alarm);
+	parameter [0:0]		OPT_PREVALIDATED_INPUT = 1'b0;
+	parameter [21:0]	OPT_INITIAL_ALARM_TIME = 0;
+	parameter [0:0]		OPT_START_ENABLED = 0;
+	parameter [0:0]		OPT_FIXED_ALARM_TIME = 0;
+	//
 	input	wire		i_clk, i_reset;
 	//
 	input	wire	[21:0]	i_now;
 	//
 	input	wire		i_wr;
 	input	wire		i_enable, i_clear;
-	input	wire	[21:0]	i_when;
+	input	wire	[21:0]	i_alarm_time;
 	input	wire	[2:0]	i_valid;
 	//
 	output	wire	[31:0]	o_data;
@@ -65,44 +70,82 @@ module	rtcalarm(i_clk, i_reset, i_now,
 	// can come and see that the alarm tripped.
 	//
 	//
-	reg	[21:0]		alarm_time, was;
+	reg	[21:0]		alarm_time, past_time;
 	reg			enabled,	// Whether the alarm is enabled
 				tripped;	// Whether the alarm has tripped
-	initial	enabled= 1'b0;
+
+	initial	enabled = OPT_START_ENABLED;
 	always @(posedge i_clk)
 	if (i_reset)
-		enabled <= 1'b0;
+		enabled <= OPT_START_ENABLED;
 	else if (i_wr)
 		enabled <= i_enable;
 
 	always @(posedge i_clk)
-		was <= i_now;
+		past_time <= i_now;
 
 	initial	tripped= 1'b0;
 	always @(posedge i_clk)
 	if (i_reset)
 		tripped <= 1'b0;
-	else if ((enabled)&&(i_now == alarm_time)&&(i_now != was))
+	else if ((enabled)&&(i_now == alarm_time)&&(i_now != past_time))
 		tripped <= 1'b1;
 	else if ((i_wr)&&(i_clear))
 		tripped <= 1'b0;
 
-	initial	alarm_time = 0;
+	reg	[2:0]	pre_valid;
+	reg	[21:0]	validated_alarm_time;
+	generate if (OPT_PREVALIDATED_INPUT)
+	begin : INPUT_IS_VALID
+
+		always @(*)
+			pre_valid = ((!OPT_FIXED_ALARM_TIME)&&(i_wr))
+					? i_valid : 0;
+
+		always @(*)
+			validated_alarm_time = i_valid;
+
+	end else begin : CHECK_INPUT_VALIDITY
+
+		initial	pre_valid = 0;
+		always @(posedge i_clk)
+		if ((i_reset)||(!i_wr)||(OPT_FIXED_ALARM_TIME))
+			pre_valid <= 0;
+		else begin
+
+			pre_valid[0] <= (i_valid[0])
+					&&(i_alarm_time[7:0] <= 8'h59)
+					&&(i_alarm_time[3:0] <= 4'h9);
+
+			pre_valid[1] <= (i_valid[1])
+					&&(i_alarm_time[15:8] <= 8'h59)
+					&&(i_alarm_time[11:8] <= 4'h9);
+
+			pre_valid[2] <= (i_valid[2])
+					&&(i_alarm_time[21:16] <= 6'h23)
+					&&(i_alarm_time[19:16] <= 4'h9);
+		end
+
+		always @(posedge i_clk)
+			validated_alarm_time <= i_alarm_time;
+
+	end endgenerate
+
+	initial	alarm_time = OPT_INITIAL_ALARM_TIME;
 	always @(posedge i_clk)
 	if (i_reset)
-		alarm_time <= 0;
-	else if (i_wr)
-	begin
+		alarm_time <= OPT_INITIAL_ALARM_TIME;
+	else if (!OPT_FIXED_ALARM_TIME) begin
 		// Only adjust the alarm hours if the requested hours
 		// are valid.  This allows writes to the register,
 		// without a prior read, to leave these configuration
 		// bits alone.
-		if (i_valid[0]) // Seconds
-			alarm_time[7:0] <= i_when[7:0];
-		if (i_valid[1]) // Minutes
-			alarm_time[15:8] <= i_when[15:8];
-		if (i_valid[2]) // Hours
-			alarm_time[21:16] <= i_when[21:16];
+		if (pre_valid[0]) // Seconds
+			alarm_time[7:0]   <= validated_alarm_time[7:0];
+		if (pre_valid[1]) // Minutes
+			alarm_time[15:8]  <= validated_alarm_time[15:8];
+		if (pre_valid[2]) // Hours
+			alarm_time[21:16] <= validated_alarm_time[21:16];
 	end
 
 	assign	o_data  = { 6'h0, tripped, enabled, 2'b00, alarm_time };
@@ -136,9 +179,13 @@ module	rtcalarm(i_clk, i_reset, i_now,
 	if ((!f_past_valid)||($past(i_reset)))
 	begin
 		`ASSERT(!tripped);
-		`ASSERT(!enabled);
-		`ASSERT(alarm_time == 0);
+		`ASSERT(enabled == OPT_START_ENABLED);
+		`ASSERT(alarm_time == OPT_INITIAL_ALARM_TIME);
 	end
+
+	always @(*)
+	if (OPT_FIXED_ALARM_TIME)
+		`ASSERT(alarm_time == OPT_INITIAL_ALARM_TIME);
 
 	always @(*)
 	begin
@@ -150,32 +197,31 @@ module	rtcalarm(i_clk, i_reset, i_now,
 		`ASSUME(i_now[21:16] <= 8'h23);
 	end
 
-//	always @(posedge i_clk)
-//	if ((f_past_valid)&&($past(i_now < 23'h235959)))
-//		`ASSUME(i_now >= $past(i_now));
-//	else
-//		`ASSUME((i_now == $past(i_now))||(i_now == 0));
-	always @(*)
-	if (i_wr)
-	begin
-		if (i_valid[0])
+	generate if (OPT_PREVALIDATED_INPUT)
+	begin : F_ASSUME_VALID_INPUTS
+
+		always @(*)
+		if (pre_valid[0])
 		begin
-			`ASSUME(i_when[ 3: 0] <= 4'h9);
-			`ASSUME(i_when[ 7: 4] <= 4'h5);
+			`ASSUME(i_alarm_time[ 3: 0] <= 4'h9);
+			`ASSUME(i_alarm_time[ 7: 4] <= 4'h5);
 		end
 
-		if (i_valid[1])
+		always @(*)
+		if (pre_valid[1])
 		begin
-			`ASSUME(i_when[11: 8] <= 4'h9);
-			`ASSUME(i_when[15:12] <= 4'h5);
+			`ASSUME(i_alarm_time[11: 8] <= 4'h9);
+			`ASSUME(i_alarm_time[15:12] <= 4'h5);
+		end
+	
+		always @(*)
+		if (pre_valid[2])
+		begin
+			`ASSUME(i_alarm_time[19:16] <= 4'h9);
+			`ASSUME(i_alarm_time[21:16] <= 8'h23);
 		end
 
-		if (i_valid[2])
-		begin
-			`ASSUME(i_when[19:16] <= 4'h9);
-			`ASSUME(i_when[21:16] <= 8'h23);
-		end
-	end
+	end endgenerate
 
 	always @(*)
 	begin
@@ -190,7 +236,7 @@ module	rtcalarm(i_clk, i_reset, i_now,
 	always @(posedge i_clk)
 	if ((f_past_valid)&&($past(enabled))&&(!$past(i_reset))
 			&&($past(i_now) == $past(alarm_time))
-			&&($past(i_now) != $past(was)))
+			&&($past(i_now) != $past(past_time)))
 		`ASSERT(tripped);
 	else if ((!f_past_valid)||($past(i_reset))||(!$past(tripped)))
 		`ASSERT(!tripped);

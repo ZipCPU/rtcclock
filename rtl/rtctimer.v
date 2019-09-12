@@ -12,7 +12,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 //
-// Copyright (C) 2015-2018, Gisselquist Technology, LLC
+// Copyright (C) 2015-2019, Gisselquist Technology, LLC
 //
 // This program is free software (firmware): you can redistribute it and/or
 // modify it under the terms of  the GNU General Public License as published
@@ -41,11 +41,9 @@
 module	rtctimer(i_clk, i_reset,
 		i_sub_ck, i_wr, i_data, i_valid, i_zero,
 		o_data, o_interrupt);
-`ifdef	FORMAL
 	parameter	LGSUBCK = 2;
-`else
-	parameter	LGSUBCK = 8;
-`endif
+	parameter [0:0] 	OPT_PREVALIDATED_INPUT = 1'b0;
+	parameter [21:0]	OPT_FIXED_INTERVAL = 0;
 	//
 	input	wire		i_clk, i_reset;
 	//
@@ -55,10 +53,14 @@ module	rtctimer(i_clk, i_reset,
 	input	wire	[24:0]	i_data;
 	input	wire	[2:0]	i_valid;
 	input	wire		i_zero;
-	output	reg	[31:0]	o_data;
+	output	wire	[31:0]	o_data;
 	output	wire		o_interrupt;
 
 	reg	[23:0]	bcd_timer;
+	// wire	[6:0]	bcd_hours, bcd_minutes, bcd_seconds;
+	// assign	bcd_seconds = bcd_timer[ 6:0];
+	// assign	bcd_minutes = bcd_timer[14:8];
+	// assign	bcd_hours   = bcd_timer[22:16];
 
 	//
 	reg	[23:0]	next_timer;

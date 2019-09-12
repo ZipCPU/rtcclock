@@ -1,3 +1,0 @@
-read_verilog -D RTCTIMER -formal ../../rtl/rtctimer.v
-prep -top rtctimer -nordff
-write_smt2 -wires rtctimer.smt2

@@ -1,3 +1,0 @@
-read_verilog -D RTCBARE -formal ../../rtl/rtcbare.v
-prep -top rtcbare -nordff
-write_smt2 -wires rtcbare.smt2

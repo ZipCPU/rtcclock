@@ -1,3 +1,0 @@
-read_verilog -D RTCDATE -formal ../../rtl/rtcdate.v
-prep -top rtcdate -nordff
-write_smt2 -wires rtcdate.smt2

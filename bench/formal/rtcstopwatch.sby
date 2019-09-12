@@ -1,0 +1,15 @@
+[tasks]
+prv
+
+[options]
+mode prove
+
+[engines]
+smtbmc boolector
+
+[script]
+read_verilog -D STOPWATCH -formal rtcstopwatch.v
+prep -top rtcstopwatch
+
+[files]
+../../rtl/rtcstopwatch.v

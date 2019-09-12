@@ -1,0 +1,18 @@
+[tasks]
+checkinp
+validated
+
+[options]
+mode prove
+
+[engines]
+smtbmc boolector
+
+[script]
+read_verilog -D RTCBARE -formal rtcbare.v
+checkinp:  chparam -set OPT_PREVALIDATED_INPUT 0 rtcbare
+validated: chparam -set OPT_PREVALIDATED_INPUT 1 rtcbare
+prep -top rtcbare
+
+[files]
+../../rtl/rtcbare.v
