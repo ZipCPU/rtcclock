@@ -9,7 +9,7 @@ mode prove
 smtbmc boolector
 
 [script]
-read_verilog -D RTCBARE -formal rtcbare.v
+read -formal -D RTCBARE rtcbare.v
 checkinp:  chparam -set OPT_PREVALIDATED_INPUT 0 rtcbare
 validated: chparam -set OPT_PREVALIDATED_INPUT 1 rtcbare
 prep -top rtcbare

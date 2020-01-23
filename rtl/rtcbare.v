@@ -25,7 +25,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 //
-// Copyright (C) 2015-2019, Gisselquist Technology, LLC
+// Copyright (C) 2015-2020, Gisselquist Technology, LLC
 //
 // This program is free software (firmware): you can redistribute it and/or
 // modify it under the terms of  the GNU General Public License as published
@@ -255,7 +255,7 @@ module	rtcbare(i_clk, i_reset,
 `define	ASSERT	assert
 `else
 `define	ASSUME	assert
-`define	ASSERT	assume
+`define	ASSERT	assert
 `endif
 
 	reg	f_past_valid;
