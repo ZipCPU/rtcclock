@@ -1,6 +1,5 @@
 [tasks]
-checkinp
-validated
+prf
 
 [options]
 mode prove
@@ -10,8 +9,6 @@ smtbmc boolector
 
 [script]
 read_verilog -D RTCTIMER -formal rtctimer.v
-checkinp:  chparam -set OPT_PREVALIDATED_INPUT 0 rtctimer
-validated: chparam -set OPT_PREVALIDATED_INPUT 1 rtctimer
 prep -top rtctimer
 
 [files]

@@ -1,30 +1,29 @@
 ////////////////////////////////////////////////////////////////////////////////
 //
 // Filename: 	rtcdate_tb.cpp
-//
+// {{{
 // Project:	A Wishbone Controlled Real--time Clock Core
 //
 // Purpose:	To exercise the functionality of the real-time date core.
 //		If this program works, (and works properly) it will exit
-//		with an exit code of zero if the core works, and a negative
-//		number if not.  Further, on the last line it will state either
-//		SUCCESS or FAIL.  This program should take no arguments.
+//	with an exit code of zero if the core works, and a negative number if
+//	not.  Further, on the last line it will state either SUCCESS or FAIL.
+//	This program should take no arguments.
 //
-//		This program makes heavy use of the mktime() and gmtime_r
-//		libc calls.  As a result, it really checks that the rtcdate
-//		module produces the same dates as the libc library.  Any
-//		differences will be cause for immediate test termination and
-//		failure.
+//	This program makes heavy use of the mktime() and gmtime_r libc calls.
+//	As a result, it really checks that the rtcdate module produces the same
+//	dates as the libc library.  Any differences will be cause for immediate
+//	test termination and failure.
 //
-//		As of 17 July, 2015, rtcdate.v passes this test.
+//	As of 17 July, 2015, rtcdate.v passes this test.
 //
 // Creator:	Dan Gisselquist, Ph.D.
 //		Gisselquist Tecnology, LLC
 //
 ////////////////////////////////////////////////////////////////////////////////
-//
-// Copyright (C) 2015, Gisselquist Technology, LLC
-//
+// }}}
+// Copyright (C) 2015-2021, Gisselquist Technology, LLC
+// {{{
 // This program is free software (firmware): you can redistribute it and/or
 // modify it under the terms of  the GNU General Public License as published
 // by the Free Software Foundation, either version 3 of the License, or (at
@@ -39,14 +38,14 @@
 // with this program.  (It's in the $(ROOT)/doc directory, run make with no
 // target there if the PDF file isn't present.)  If not, see
 // <http://www.gnu.org/licenses/> for a copy.
-//
+// }}}
 // License:	GPL, v3, as defined and found on www.gnu.org,
+// {{{
 //		http://www.gnu.org/licenses/gpl.html
-//
 //
 ////////////////////////////////////////////////////////////////////////////////
 //
-//
+// }}}
 #include <stdio.h>
 #include <assert.h>
 #include <time.h>
@@ -61,6 +60,7 @@ typedef	unsigned int	BUSV;	// Wishbone value
 class	RTCDATE_TB : public TESTB<Vrtcdate> {
 public:
 	BUSV	read(void) {
+		// {{{
 		BUSV	result;
 
 		m_core->i_wb_cyc_stb = 1;
@@ -86,9 +86,11 @@ public:
 		assert(m_core->o_wb_ack   == 0);
 
 		return result;
+		// }}}
 	}
 
 	void	write(BUSV val) {
+		// {{{
 // printf("WB-WRITE(%08x)\n", val);
 		m_core->i_wb_cyc_stb = 1;
 		m_core->i_wb_we  = 1;
@@ -118,10 +120,12 @@ public:
 			assert(m_core->o_wb_stall == 0);
 			assert(m_core->o_wb_ack   == 0);
 		}
+		// }}}
 	}
 
 
 	BUSV	encode(time_t when) {
+		// {{{
 		BUSV	bv;
 		struct	tm	tv;
 		gmtime_r(&when, &tv);
@@ -141,6 +145,7 @@ public:
 		bv |= (dy%10);
 
 		return bv;
+		// }}}
 	}
 
 	void	set(time_t when) {
@@ -148,6 +153,7 @@ public:
 	}
 
 	bool	check(time_t when) {
+		// {{{
 		BUSV	bv = encode(when), rv;
 		rv = read();
 		if (bv != rv) {
@@ -155,9 +161,11 @@ public:
 			exit(-2);
 		}
 		return (bv == rv);
+		// }}}
 	}
 
 	void	next(void) {
+		// {{{
 		m_core->i_ppd    = 1;
 		m_core->i_wb_cyc_stb = 0;
 
@@ -168,6 +176,7 @@ public:
 
 		for(int k=0; k<10; k++)
 			tick();
+		// }}}
 	}
 };
 
@@ -210,6 +219,3 @@ int main(int argc, char **argv) {
 	printf("SUCCESS!\n");
 	return 0;
 }
-
-
-

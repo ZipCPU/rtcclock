@@ -1,7 +1,7 @@
 ############################################################################/
 ##
 ## Filename: 	Makefile
-##
+## {{{
 ## Project:	A Wishbone Controlled Real--time Clock Core
 ##
 ## Purpose:	This is the Makefile to build the verilator test bench code
@@ -13,9 +13,9 @@
 ##		Gisselquist Tecnology, LLC
 ##
 ##########################################################################/
-##
-## Copyright (C) 2015,2018, Gisselquist Technology, LLC
-##
+## }}}
+## Copyright (C) 2015-2021, Gisselquist Technology, LLC
+## {{{
 ## This program is free software (firmware): you can redistribute it and/or
 ## modify it under the terms of  the GNU General Public License as published
 ## by the Free Software Foundation, either version 3 of the License, or (at
@@ -30,14 +30,14 @@
 ## with this program.  (It's in the $(ROOT)/doc directory.  Run make with no
 ## target there if the PDF file isn't present.)  If not, see
 ## <http://www.gnu.org/licenses/> for a copy.
-##
+## }}}
 ## License:	GPL, v3, as defined and found on www.gnu.org,
+## {{{
 ##		http://www.gnu.org/licenses/gpl.html
-##
 ##
 ##########################################################################/
 ##
-##
+## }}}
 # This is really simple ...
 all: rtcdate rtclight rtcgps rtcclock
 OBJDR := ./obj_dir
@@ -47,44 +47,57 @@ VFLAGS := -Wall -MMD -trace -cc
 SUBMAKE := $(MAKE) --no-print-directory -C
 
 .PHONY: rtcclock
+## {{{
 rtcclock: $(OBJDR)/Vrtcclock__ALL.a
 $(OBJDR)/Vrtcclock.cpp $(OBJDR)/Vrtcclock.h: rtcclock.v
 	$(VERILATOR) $(VFLAGS) rtcclock.v
 # $(OBJDR)/Vrtcclock__ALL.a: $(OBJDR)/Vrtcclock.h
 $(OBJDR)/Vrtcclock__ALL.a: $(OBJDR)/Vrtcclock.cpp
 	$(SUBMAKE) $(OBJDR)/ -f Vrtcclock.mk
+## }}}
 
 .PHONY: rtcdate
+## {{{
 rtcdate: $(OBJDR)/Vrtcdate__ALL.a
 $(OBJDR)/Vrtcdate.cpp $(OBJDR)/Vrtcdate.h: rtcdate.v
 	$(VERILATOR) $(VFLAGS) rtcdate.v
 # $(OBJDR)/Vrtcdate__ALL.a: $(OBJDR)/Vrtcdate.h
 $(OBJDR)/Vrtcdate__ALL.a: $(OBJDR)/Vrtcdate.cpp
 	$(SUBMAKE) $(OBJDR)/ -f Vrtcdate.mk
+## }}}
 
 .PHONY: rtclight
+## {{{
 rtclight: $(OBJDR)/Vrtclight__ALL.a
 $(OBJDR)/Vrtclight.cpp $(OBJDR)/Vrtclight.h: rtclight.v
 	$(VERILATOR) $(VFLAGS) rtclight.v
 # $(OBJDR)/Vrtclight__ALL.a: $(OBJDR)/Vrtclight.h
 $(OBJDR)/Vrtclight__ALL.a: $(OBJDR)/Vrtclight.cpp
 	$(SUBMAKE) $(OBJDR)/ -f Vrtclight.mk
+## }}}
 
 .PHONY: rtcgps
+## {{{
 rtcgps: $(OBJDR)/Vrtcgps__ALL.a
 $(OBJDR)/Vrtcgps.cpp $(OBJDR)/Vrtcgps.h: rtcgps.v
 	$(VERILATOR) $(VFLAGS) rtcgps.v
 # $(OBJDR)/Vrtcgps__ALL.a: $(OBJDR)/Vrtcgps.h
 $(OBJDR)/Vrtcgps__ALL.a: $(OBJDR)/Vrtcgps.cpp
 	$(SUBMAKE) $(OBJDR)/ -f Vrtcgps.mk
+## }}}
 
+## Dependency handling
+## {{{
 DEPS := $(wildcard $(OBJDR)/*.d)
 
 ifneq ($(DEPS),)
 include $(DEPS)
 endif
+## }}}
 
 .PHONY: clean
+## {{{
 clean:
 	rm -rf $(OBJDR)
+## }}}
 

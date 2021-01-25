@@ -1,7 +1,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 //
 // Filename: 	rtcgps.v
-//
+// {{{
 // Project:	A Wishbone Controlled Real--time Clock Core, w/ GPS synch
 //
 // Purpose:	Implement a real time clock, including alarm, count--down
@@ -16,9 +16,9 @@
 //		Gisselquist Technology, LLC
 //
 ////////////////////////////////////////////////////////////////////////////////
-//
-// Copyright (C) 2015-2019, Gisselquist Technology, LLC
-//
+// }}}
+// Copyright (C) 2015-2021, Gisselquist Technology, LLC
+// {{{
 // This program is free software (firmware): you can redistribute it and/or
 // modify it under the terms of  the GNU General Public License as published
 // by the Free Software Foundation, either version 3 of the License, or (at
@@ -42,43 +42,41 @@
 //
 //
 `default_nettype	none
-//
-module	rtcgps(i_clk, i_reset,
+// }}}
+module	rtcgps #(
+		// {{{
+		parameter	DEFAULT_SPEED = 32'd2814750, //= 2^48 / CkSpd
+		parameter [0:0]	OPT_TIMER       = 1'b1,
+		parameter [0:0]	OPT_STOPWATCH   = 1'b1,
+		parameter [0:0]	OPT_ALARM       = 1'b1
+		// }}}
+	) (
+		// {{{
+		input	wire		i_clk, i_reset,
+		//
 		// Wishbone interface
-		i_wb_cyc, i_wb_stb, i_wb_we, i_wb_addr, i_wb_data, i_wb_sel,
+		input	wire		i_wb_cyc, i_wb_stb, i_wb_we,
+		input	wire	[1:0]	i_wb_addr,
+		input	wire	[31:0]	i_wb_data,
+		input	wire	[3:0]	i_wb_sel,
+		//
+		output	reg		o_wb_ack,
+		output	wire		o_wb_stall,
+		output	reg	[31:0]	o_wb_data,
 		// Output registers
-		o_wb_ack, o_wb_stall, o_wb_data, // mux'd based upon i_wb_addr
-		// Output controls
-		o_interrupt,
+		output	wire		o_interrupt,
 		// A once-per-day strobe on the last clock of the day
-		o_ppd,
+					o_ppd,
 		// GPS interface
-		i_gps_valid, i_gps_pps, i_gps_ckspeed,
-		// Our personal timing, for debug purposes
-		o_rtc_pps);
-	parameter	DEFAULT_SPEED = 32'd2814750; //2af31e = 2^48 / 100e6 MHz
-	parameter	[0:0]	OPT_TIMER       = 1'b1;
-	parameter	[0:0]	OPT_STOPWATCH   = 1'b1;
-	parameter	[0:0]	OPT_ALARM       = 1'b1;
-	parameter [0:0]	OPT_WRITE_DELAY = 1'b0;
-	//
-	input	wire		i_clk, i_reset;
-	//
-	input	wire		i_wb_cyc, i_wb_stb, i_wb_we;
-	input	wire	[1:0]	i_wb_addr;
-	input	wire	[31:0]	i_wb_data;
-	input	wire	[3:0]	i_wb_sel;
-	//
-	output	reg		o_wb_ack;
-	output	wire		o_wb_stall;
-	output	reg	[31:0]	o_wb_data;
-	output	wire		o_interrupt, o_ppd;
-	// GPS interface
-	input	wire		i_gps_valid, i_gps_pps;
-	input	wire	[31:0]	i_gps_ckspeed;
-	// Personal PPS
-	output	wire		o_rtc_pps;
+		input	wire		i_gps_valid, i_gps_pps,
+		input	wire	[31:0]	i_gps_ckspeed,
+		// Our personal timing PPS, for debug purposes
+		output	wire		o_rtc_pps
+		// }}}
+	);
 
+	// Signal descriptions
+	// {{{
 	reg	[31:0]	ckspeed;
 
 	wire	[21:0]	clock_data;
@@ -86,10 +84,18 @@ module	rtcgps(i_clk, i_reset,
 	wire	[30:0]	stopwatch_data;
 	wire		sw_running, ck_ppd;
 
-	reg	ck_wr, tm_wr, al_wr, wr_zero;
+	reg		ck_wr, tm_wr, al_wr, wr_zero;
 	reg	[31:0]	wr_data;
 	reg	[2:0]	wr_valid;
+	wire		tm_int, al_int;
+	reg	[39:0]	ck_counter;
+	reg		ck_carry, ck_sub_carry;
+	wire	[7:0]	ck_sub;
+	reg		ck_pps;
+	// }}}
 
+	// ck_wr, tm_wr, al_wr
+	// {{{
 	initial	ck_wr = 1'b0;
 	initial	tm_wr = 1'b0;
 	initial	al_wr = 1'b0;
@@ -105,7 +111,10 @@ module	rtcgps(i_clk, i_reset,
 		//sw_wr<=((i_wb_stb)&&(i_wb_addr==2'b10)&&(i_wb_we));
 		al_wr <= ((i_wb_stb)&&(i_wb_addr==2'b11)&&(i_wb_we));
 	end
+	// }}}
 
+	// wr_data, wr_valid, wr_zero
+	// {{{
 	always @(posedge i_clk)
 	begin
 		wr_data <= i_wb_data;
@@ -117,11 +126,24 @@ module	rtcgps(i_clk, i_reset,
 				&&(i_wb_data[21:16] <= 6'h23);
 		wr_zero     <= (i_wb_data[23:0]==0);
 	end
-
-	wire	tm_int, al_int;
-
+	// }}}
+	////////////////////////////////////////////////////////////////////////
+	//
+	// The bare clock
+	// {{{
+	////////////////////////////////////////////////////////////////////////
+	//
+	//
 	rtcbare	clock(i_clk, i_reset, ck_pps,
 			ck_wr, wr_data[21:0], wr_valid, clock_data, ck_ppd);
+	// }}}
+	////////////////////////////////////////////////////////////////////////
+	//
+	// Timer
+	// {{{
+	////////////////////////////////////////////////////////////////////////
+	//
+	//
 
 	generate if (OPT_TIMER)
 	begin
@@ -133,6 +155,14 @@ module	rtcgps(i_clk, i_reset,
 		assign	tm_int = 0;
 		assign	timer_data = 0;
 	end endgenerate
+	// }}}
+	////////////////////////////////////////////////////////////////////////
+	//
+	// Stopwatch
+	// {{{
+	////////////////////////////////////////////////////////////////////////
+	//
+	//
 
 	generate if (OPT_STOPWATCH)
 	begin
@@ -157,6 +187,14 @@ module	rtcgps(i_clk, i_reset,
 		assign sw_running = 0;
 
 	end endgenerate
+	// }}}
+	////////////////////////////////////////////////////////////////////////
+	//
+	// Alarm
+	// {{{
+	////////////////////////////////////////////////////////////////////////
+	//
+	//
 
 	generate if (OPT_ALARM)
 	begin
@@ -170,9 +208,14 @@ module	rtcgps(i_clk, i_reset,
 		assign	al_int = 0;
 
 	end endgenerate
-
-	reg	[39:0]	ck_counter;
-	reg		ck_carry, ck_sub_carry;
+	// }}}
+	////////////////////////////////////////////////////////////////////////
+	//
+	// Sub-second tracking
+	// {{{
+	////////////////////////////////////////////////////////////////////////
+	//
+	//
 
 	initial	ck_carry = 1'b0;
 	initial	ck_sub_carry = 1'b0;
@@ -203,28 +246,33 @@ module	rtcgps(i_clk, i_reset,
 			<= ck_counter[31:0] + ckspeed;
 		{ ck_carry, ck_counter[39:32] }
 			<= ck_counter[39:32] + { 7'h0, ck_sub_carry };
-
 	end
 
-	wire	[7:0]	ck_sub;
 	assign	ck_sub = ck_counter[39:32];
 
-	reg		ck_pps;
 	always @(posedge i_clk)
-		if ((i_gps_pps)&&(i_gps_valid)&&(ck_sub[7]))
-			// If the GPS is ahead of us, jump forward and set
-			// the PPS high
-			ck_pps <= 1'b1;
-		else if ((ck_carry)&&(ck_sub == 8'h00))
-			// Otherwise, if there is no GPS, or if the GPS is
-			// late, then set the ck_pps on the roll over of
-			// ck_sub
-			ck_pps <= 1'b1;
-		else
-			// in all other cases, ck_pps should be zero.  It's a
-			// strobe signal that should only (if ever) be true
-			// for a single clock cycle per second
-			ck_pps <= 1'b0;
+	if ((i_gps_pps)&&(i_gps_valid)&&(ck_sub[7]))
+		// If the GPS is ahead of us, jump forward and set
+		// the PPS high
+		ck_pps <= 1'b1;
+	else if ((ck_carry)&&(ck_sub == 8'h00))
+		// Otherwise, if there is no GPS, or if the GPS is
+		// late, then set the ck_pps on the roll over of
+		// ck_sub
+		ck_pps <= 1'b1;
+	else
+		// in all other cases, ck_pps should be zero.  It's a
+		// strobe signal that should only (if ever) be true
+		// for a single clock cycle per second
+		ck_pps <= 1'b0;
+	// }}}
+	////////////////////////////////////////////////////////////////////////
+	//
+	// Clock speed
+	// {{{
+	////////////////////////////////////////////////////////////////////////
+	//
+	//
 
 	//
 	// The ckspeed register is equal to 2^48 divded by the number of
@@ -239,6 +287,14 @@ module	rtcgps(i_clk, i_reset,
 	always @(posedge i_clk)
 	if (i_gps_valid)
 		ckspeed <= i_gps_ckspeed;
+	// }}}
+	////////////////////////////////////////////////////////////////////////
+	//
+	// o_interrupt and bus responses
+	// {{{
+	////////////////////////////////////////////////////////////////////////
+	//
+	//
 
 	assign	o_interrupt = tm_int || al_int;
 
@@ -247,32 +303,40 @@ module	rtcgps(i_clk, i_reset,
 	// connecting this module to a year/month/date date/calendar module.
 	assign	o_ppd = (ck_ppd)&&(ck_pps);
 
+	// o_wb_data
+	// {{{
 	initial	o_wb_data = 0;
 	always @(posedge i_clk)
-		case(i_wb_addr)
-		2'b00: o_wb_data <= { !i_gps_valid, 7'h0, 2'b00,clock_data[21:0] };
-		2'b01: o_wb_data <= timer_data;
-		2'b10: o_wb_data <= { sw_running, stopwatch_data };
-		2'b11: o_wb_data <= alarm_data;
-		endcase
+	case(i_wb_addr)
+	2'b00: o_wb_data <= { !i_gps_valid, 7'h0, 2'b00,clock_data[21:0] };
+	2'b01: o_wb_data <= timer_data;
+	2'b10: o_wb_data <= { sw_running, stopwatch_data };
+	2'b11: o_wb_data <= alarm_data;
+	endcase
+	// }}}
 
-	assign	o_rtc_pps = ck_pps;
-
+	// o_wb_ack
+	// {{{
 	initial	o_wb_ack = 0;
 	always @(posedge i_clk)
 	if (i_reset)
 		o_wb_ack <= 0;
 	else
 		o_wb_ack <= i_wb_stb;
+	// }}}
 
 	assign	o_wb_stall = 0;
+	// }}}
+
+	assign	o_rtc_pps = ck_pps;
 
 	// Make verilator happy
+	// {{{
 	// verilator lint_off UNUSED
 	wire	 unused;
 	assign	unused = &{ 1'b0, i_wb_cyc, wr_data[31:26], i_wb_sel[3] };
 	// verilator lint_on  UNUSED
-
+	// }}}
 `ifdef	FORMAL
 `ifdef	RTCGPS
 `define	ASSUME	assume

@@ -1,5 +1,5 @@
 [tasks]
-prv
+prf
 
 [options]
 mode prove

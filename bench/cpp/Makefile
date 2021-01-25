@@ -1,7 +1,7 @@
 ################################################################################
 ##
 ## Filename: 	Makefile
-##
+## {{{
 ## Project:	A Wishbone Controlled Real--time Clock Core
 ##
 ## Purpose:	This programs the build process for the test benches
@@ -11,9 +11,9 @@
 ##		Gisselquist Tecnology, LLC
 ##
 ################################################################################
-##
-## Copyright (C) 2015,2017, Gisselquist Technology, LLC
-##
+## }}}
+## Copyright (C) 2015-2021, Gisselquist Technology, LLC
+## {{{
 ## This program is free software (firmware): you can redistribute it and/or
 ## modify it under the terms of  the GNU General Public License as published
 ## by the Free Software Foundation, either version 3 of the License, or (at
@@ -28,12 +28,13 @@
 ## with this program.  (It's in the $(ROOT)/doc directory, run make with no
 ## target there if the PDF file isn't present.)  If not, see
 ## <http://www.gnu.org/licenses/> for a copy.
-##
+## }}}
 ## License:	GPL, v3, as defined and found on www.gnu.org,
+## {{{
 ##		http://www.gnu.org/licenses/gpl.html
 ##
-##
 ##########################################################################/
+## }}}
 all: rtcdate_tb 
 # all: rtcclock_tb		# rtcclock_tb is not yet written ...
 # all: test
@@ -83,6 +84,27 @@ test: rtcclock_tb rtcdate_tb
 	./rtcdate_tb
 
 #
+define	mk-objdir
+	@bash -c "if [ ! -e $(OBJDIR) ]; then mkdir -p $(OBJDIR); fi"
+endef
+
+#
+# The "tags" target
+## {{{
+tags:	$(SOURCES) $(HEADERS)
+	@echo "Generating tags"
+	@ctags $(SOURCES) $(HEADERS)
+## }}}
+
+.PHONY: clean
+## {{{
+clean:
+	rm -f rtcclock_tb rtcdate_tb
+	rm -rf $(OBJDIR)/
+## }}}
+
+## Depends
+## {{{
 # The "depends" target, to know what files things depend upon.  The depends
 # file itself is kept in $(OBJDIR)/depends.txt
 #
@@ -95,26 +117,12 @@ define	build-depends
 endef
 
 .PHONY: depends
+## {{{
 depends: tags
 	$(build-depends)
+## }}}
 
 $(OBJDIR)/depends.txt: depends
 
-#
-define	mk-objdir
-	@bash -c "if [ ! -e $(OBJDIR) ]; then mkdir -p $(OBJDIR); fi"
-endef
-
-#
-# The "tags" target
-#
-tags:	$(SOURCES) $(HEADERS)
-	@echo "Generating tags"
-	@ctags $(SOURCES) $(HEADERS)
-
-.PHONY: clean
-clean:
-	rm -f rtcclock_tb rtcdate_tb
-	rm -rf $(OBJDIR)/
-
 -include $(OBJDIR)/depends.txt
+## }}}
