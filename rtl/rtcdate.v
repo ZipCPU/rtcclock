@@ -28,7 +28,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 // }}}
-// Copyright (C) 2015-2021, Gisselquist Technology, LLC
+// Copyright (C) 2015-2024, Gisselquist Technology, LLC
 // {{{
 // This program is free software (firmware): you can redistribute it and/or
 // modify it under the terms of  the GNU General Public License as published
@@ -55,7 +55,9 @@
 //
 `default_nettype	none
 // }}}
-module rtcdate (
+module rtcdate #(
+		parameter [29:0]	INITIAL_DATE = 30'h20000101
+	) (
 		// {{{
 		input	wire		i_clk,
 		// A one part per day signal, i.e. basically a clock enable
@@ -171,7 +173,7 @@ module rtcdate (
 	//
 
 	// Adjust the day of month
-	initial	next_day = 6'h01;
+	initial	next_day = INITIAL_DATE[5:0];
 	always @(posedge i_clk)
 	if (last_day_of_month)
 		next_day <= 6'h01;
@@ -180,7 +182,7 @@ module rtcdate (
 	else
 		next_day <= { (r_day[5:4]+2'h1), 4'h0 };
 
-	initial	fixd_day = 6'h01;
+	initial	fixd_day = INITIAL_DATE[5:0];
 	always @(posedge i_clk)
 	if ((r_day == 0)||(r_day > days_per_month))
 		fixd_day <= 6'h01;
@@ -191,8 +193,7 @@ module rtcdate (
 	end else
 		fixd_day <= r_day;
 
-
-	initial	r_day = 6'h01;
+	initial	r_day = INITIAL_DATE[5:0];
 	always @(posedge i_clk)
 	begin // Depends upon 9 inputs
 		if (update)
@@ -226,14 +227,14 @@ module rtcdate (
 	end else
 		next_mon <= r_mon;
 
-	initial	fixd_mon = 5'h01;
+	initial	fixd_mon = INITIAL_DATE[12:8];
 	always @(posedge i_clk)
-		if ((r_mon == 0)||(r_mon > 5'h12)||(r_mon[3:0] > 4'h9))
-			fixd_mon <= 5'h01;
-		else
-			fixd_mon <= r_mon;
+	if ((r_mon == 0)||(r_mon > 5'h12)||(r_mon[3:0] > 4'h9))
+		fixd_mon <= 5'h01;
+	else
+		fixd_mon <= r_mon;
 
-	initial	r_mon = 5'h01;
+	initial	r_mon = INITIAL_DATE[12:8];
 	always @(posedge i_clk)
 	begin // Depeds upon 9 inputs
 		if (update)
@@ -254,7 +255,7 @@ module rtcdate (
 	//
 
 	// Adjust the year
-	initial	next_year   = 14'h2000;
+	initial	next_year   = INITIAL_DATE[29:16];
 	initial	next_year_c = 0;
 	always @(posedge i_clk)
 	begin // Takes 5 clocks to propagate
@@ -276,7 +277,7 @@ module rtcdate (
 			next_year_c <= 3'h0;
 	end
 
-	initial	r_year = 14'h2000;
+	initial	r_year = INITIAL_DATE[29:16];
 	always @(posedge i_clk)
 	begin // 11 inputs
 		// Deal with any out of bounds conditions
@@ -302,7 +303,7 @@ module rtcdate (
 	//
 	//
 
-	initial	o_wb_ack = 0;
+	initial	o_wb_ack = 1'b0;
 	always @(posedge i_clk)
 		o_wb_ack <= (i_wb_stb);
 
@@ -328,43 +329,36 @@ module rtcdate (
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 `ifdef	FORMAL
-`ifdef	RTCDATE
-`define	ASSUME	assume
-	reg	f_last_clk;
-	initial	assume(f_last_clk == 1);
-	initial	assume(i_clk == 0);
-	always @($global_clock)
-	begin
-		assume(i_clk != f_last_clk);
-		f_last_clk <= !f_last_clk;
-	end
-`else
-`define	ASSUME	assert
-`endif
 	reg	f_past_valid;
+	reg	[8:0]	f_past_ppd;
+
 	initial	f_past_valid = 1'b0;
 	always @(posedge i_clk)
 		f_past_valid <= 1'b1;
 
-	initial	`ASSUME(!i_wb_stb);
-	initial	assume(!i_wb_we);
-	initial	assume(!i_wb_sel);
-	initial	`ASSUME(!i_ppd);
+	always @(*)
+	if (!f_past_valid)
+	begin
+		assume(!i_wb_stb);
+		assume(!i_wb_we);
+		assume(!i_wb_sel);
+		assume(!i_ppd);
+	end
 
 	always @(posedge i_clk)
 	if (f_past_valid)
 		assert(o_wb_ack == $past(i_wb_stb));
 
-	reg	[8:0]	f_past_ppd;
 	initial	f_past_ppd = 8'h00;
 	always @(posedge i_clk)
-		if (i_ppd)
-			f_past_ppd <= 9'h1ff;
-		else
-			f_past_ppd <= { f_past_ppd[7:0], 1'b0 };
+	if (i_ppd)
+		f_past_ppd <= 9'h1ff;
+	else
+		f_past_ppd <= { f_past_ppd[7:0], 1'b0 };
+
 	always @(posedge i_clk)
-		if (|f_past_ppd)
-			`ASSUME(!i_ppd);
+	if (|f_past_ppd)
+		assume(!i_ppd);
 
 	always @(posedge i_clk)
 	if (!r_block_updates[9])

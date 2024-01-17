@@ -22,7 +22,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 // }}}
-// Copyright (C) 2015-2021, Gisselquist Technology, LLC
+// Copyright (C) 2015-2024, Gisselquist Technology, LLC
 // {{{
 // This program is free software (firmware): you can redistribute it and/or
 // modify it under the terms of  the GNU General Public License as published
@@ -63,23 +63,24 @@ public:
 		// {{{
 		BUSV	result;
 
-		m_core->i_wb_cyc_stb = 1;
+		m_core->i_wb_cyc     = 1;
+		m_core->i_wb_stb     = 1;
 		m_core->i_wb_we      = 0;
 		m_core->i_ppd        = 0;
 		tick();
-
-		m_core->i_wb_cyc_stb = 0;
-		m_core->i_wb_we      = 0;
-		m_core->i_ppd        = 0;
-		result = m_core->o_wb_data;
-// printf("WB-READ = %08x\n", m_core->o_wb_data);
+		m_core->i_wb_stb     = 0;
+		// tick();
 
 		assert(m_core->o_wb_stall == 0);
 		assert(m_core->o_wb_ack   == 1);
+		result = m_core->o_wb_data;
 
-		m_core->i_wb_cyc_stb = 0;
+		m_core->i_wb_cyc     = 0;
+		m_core->i_wb_stb     = 0;
 		m_core->i_wb_we      = 0;
 		m_core->i_ppd        = 0;
+// printf("WB-READ = %08x\n", m_core->o_wb_data);
+
 		tick();
 
 		assert(m_core->o_wb_stall == 0);
@@ -92,14 +93,16 @@ public:
 	void	write(BUSV val) {
 		// {{{
 // printf("WB-WRITE(%08x)\n", val);
-		m_core->i_wb_cyc_stb = 1;
+		m_core->i_wb_cyc = 1;
+		m_core->i_wb_stb = 1;
 		m_core->i_wb_we  = 1;
 		m_core->i_wb_data = val;
 		m_core->i_wb_sel  = 15;
 		m_core->i_ppd    = 0;
 		tick();
 
-		m_core->i_wb_cyc_stb = 1;
+		m_core->i_wb_cyc = 1;
+		m_core->i_wb_stb = 0;
 		m_core->i_wb_we  = 0;
 		m_core->i_ppd    = 0;
 
@@ -107,7 +110,8 @@ public:
 		assert(m_core->o_wb_ack   == 1);
 // printf("%08x =? %08x\n", m_core->o_wb_data, val);
 
-		m_core->i_wb_cyc_stb = 0;
+		m_core->i_wb_cyc = 0;
+		m_core->i_wb_stb = 0;
 		m_core->i_wb_we  = 0;
 		m_core->i_ppd    = 0;
 		tick();
@@ -167,14 +171,16 @@ public:
 	void	next(void) {
 		// {{{
 		m_core->i_ppd    = 1;
-		m_core->i_wb_cyc_stb = 0;
+		m_core->i_wb_cyc = 0;
+		m_core->i_wb_stb = 0;
 
 		tick();
 
 		m_core->i_ppd    = 0;
-		m_core->i_wb_cyc_stb = 0;
+		m_core->i_wb_cyc = 0;
+		m_core->i_wb_stb = 0;
 
-		for(int k=0; k<10; k++)
+		for(int k=0; k<5; k++)
 			tick();
 		// }}}
 	}
@@ -206,6 +212,9 @@ int main(int argc, char **argv) {
 	tv.tm_mon  =    0;
 	tv.tm_year = 4000-1900;
 	stop = mktime(&tv) - 60*60*24;
+
+	tb->tick();
+	tb->tick();
 
 	tb->set(start);
 	printf("Initial date: %08x\n", tb->read());

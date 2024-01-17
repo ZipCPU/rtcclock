@@ -9,15 +9,15 @@
 ##
 ## Targets:	The default target, all, tests all of the components tested
 ##		within this module.  Each tested top-level component will
-##	result in a <module>.check placed in this directory.  Builds that fail
-##	will leave no such file(s) behind.
+##	result in a <module>_<test>/PASS file placed in the given test
+##	subdirectory.
 ##
 ## Creator:	Dan Gisselquist, Ph.D.
 ##		Gisselquist Technology, LLC
 ##
 ################################################################################
 ## }}}
-## Copyright (C) 2017-2021, Gisselquist Technology, LLC
+## Copyright (C) 2017-2024, Gisselquist Technology, LLC
 ## {{{
 ## This program is free software (firmware): you can redistribute it and/or
 ## modify it under the terms of  the GNU General Public License as published
@@ -69,13 +69,14 @@ $(DATE)_prf/PASS: $(DATE).sby $(RTL)/$(DATE).v
 	sby -f $(DATE).sby prf
 ## }}}
 
-$(RTCCK) : $(RTCCK).check
+# $(RTCCK) : $(RTCCK).check
 ## {{{
-$(RTCCK).check: $(RTCCK).smt2
-	@rm -f $(RTCCK).check
-	$(SMTBMC) $(BMCARGS) -t 40 --dump-vcd $(RTCCK).vcd $(RTCCK).smt2
-	$(SMTBMC) $(INDARGS) -t 38 --dump-vcd $(RTCCK).vcd $(RTCCK).smt2
-	touch $@
+# The RTCCK check is now deprecated, and no longer set here.
+# $(RTCCK).check: $(RTCCK).smt2
+#	@rm -f $(RTCCK).check
+#	$(SMTBMC) $(BMCARGS) -t 40 --dump-vcd $(RTCCK).vcd $(RTCCK).smt2
+#	$(SMTBMC) $(INDARGS) -t 38 --dump-vcd $(RTCCK).vcd $(RTCCK).smt2
+#	touch $@
 ## }}}
 
 $(RTCLT) : $(RTCLT)_prf/PASS
@@ -122,12 +123,11 @@ $(BARE)_validated/PASS: $(RTL)/$(BARE).v $(BARE).sby
 ## {{{
 clean:
 	rm -rf $(DATE)_*/
-	rm -f  $(RTCCK).smt2   $(RTCCK)*.vcd   $(RTCCK).yslog
 	rm -rf $(RTCLT)_*/
 	rm -rf $(RTCGPS)_*/
 	rm -rf $(TIMER)_*/
 	rm -rf $(SWATCH)_*/
 	rm -rf $(ALARM)_*/
 	rm -rf $(BARE)_*/
-	rm -f *.check
+##	rm -f  $(RTCCK).smt2   $(RTCCK)*.vcd   $(RTCCK).yslog
 ## }}}

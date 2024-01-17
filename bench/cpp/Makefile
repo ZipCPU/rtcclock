@@ -12,7 +12,7 @@
 ##
 ################################################################################
 ## }}}
-## Copyright (C) 2015-2021, Gisselquist Technology, LLC
+## Copyright (C) 2015-2024, Gisselquist Technology, LLC
 ## {{{
 ## This program is free software (firmware): you can redistribute it and/or
 ## modify it under the terms of  the GNU General Public License as published
@@ -47,7 +47,7 @@ VROOT   := $(VERILATOR_ROOT)
 INCS	:= -I$(RTLD)/obj_dir/ -I$(VROOT)/include
 VOBJDR	:= $(RTLD)/obj_dir
 SYSVDR	:= $(VROOT)/include
-VSRC	:= verilated.cpp verilated_vcd_c.cpp
+VSRC	:= verilated.cpp verilated_vcd_c.cpp verilated_threads.cpp
 VLIB	:= $(addprefix $(OBJDIR)/,$(subst .cpp,.o,$(VSRC)))
 VINC := -I$(VROOT)/include -I$(VOBJDR)/
 CLKSRCS:= rtcclock_tb.cpp
@@ -73,10 +73,10 @@ $(OBJDIR)/%.o: $(SYSVDR)/%.cpp
 	$(CXX) $(FLAGS) $(INCS) -c $< -o $@
 
 rtcclock_tb: $(CLKOBJS) $(CLKLB)
-	$(CXX) $(FLAGS) $(INCS) $^ -o $@
+	$(CXX) $(FLAGS) $(INCS) $^ -lpthread -o $@
 
 rtcdate_tb: $(DATOBJS) $(DATLB)
-	$(CXX) $(FLAGS) $(INCS) $^ -o $@
+	$(CXX) $(FLAGS) $(INCS) $^ -lpthread -o $@
 
 .PHONY: test
 test: rtcclock_tb rtcdate_tb
